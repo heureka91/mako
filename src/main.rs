@@ -1140,7 +1140,40 @@ impl OpList {
     }
 }
 
-fn main() {}
+fn main() {
+    println!("=== Mako OT (Operational Transformation) Demo ===\n");
+
+    // Példa 1: Insert művelet
+    let ops1 = getOpList([(0, "Hello")]);
+    println!("1. Insert művelet:");
+    println!("   {:?}\n", ops1);
+
+    // Példa 2: Delete művelet (negatív hossz = törlés)
+    let ops2 = getOpList([(3, -2i32)]);
+    println!("2. Delete művelet (2 karakter törlése a 3. pozíciótól):");
+    println!("   {:?}\n", ops2);
+
+    // Példa 3: Merge sequential list - két műveletlista egyesítése
+    println!("3. Merge sequential list:");
+    let mut existing = getOpList([TestOp::Ins(5, "AB"), TestOp::Ins(10, "C")]);
+    let additions = getOpList([TestOp::Ins(5, "DEF"), TestOp::Ins(7, "G")]);
+    println!("   Existing: {:?}", existing);
+    println!("   Additions: {:?}", additions);
+    existing.merge_sequential_list(&additions);
+    println!("   After merge: {:?}\n", existing);
+
+    // Példa 4: Graph használata (DAG a verziókezeléshez)
+    println!("4. Graph merge (verzió elágazások egyesítése):");
+    let root_op = getOpList([(0, "Start")]);
+    let mut graph = Graph::new(0, root_op);
+    graph.add_node(1, getOpList([(5, "BranchA")]), vec![0]);
+    graph.add_node(2, getOpList([(5, "BranchB")]), vec![0]);
+    let result = graph.merge_graph();
+    println!("   Root: Insert 'Start' at 0");
+    println!("   Branch 1: Insert 'BranchA' at 5");
+    println!("   Branch 2: Insert 'BranchB' at 5");
+    println!("   Merged result: {:?}", result);
+}
 
 #[derive(Clone, Debug)]
 struct GraphNode {
@@ -1149,10 +1182,18 @@ struct GraphNode {
     children: Vec<usize>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PartialFrontier {
+    partial_parents: Vec<usize>,
+    immediate_children: Vec<usize>,
+}
+
+#[derive(Debug)]
 struct Graph {
     nodes: std::collections::HashMap<usize, GraphNode>,
     root: usize,
     frontier: Vec<usize>,
+    pending_children: std::collections::HashMap<usize, Vec<usize>>,
 }
 
 impl Graph {
@@ -1170,30 +1211,196 @@ impl Graph {
             nodes,
             root,
             frontier: vec![root],
+            pending_children: std::collections::HashMap::new(),
         }
     }
 
     fn add_node(&mut self, id: usize, op: OpList, parents: Vec<usize>) {
-        // Update parents to point to this child
-        for &parent_id in &parents {
-            if let Some(parent) = self.nodes.get_mut(&parent_id) {
-                parent.children.push(id);
-            }
-        }
+        let mut children = self.pending_children.remove(&id).unwrap_or_default();
+        children.sort_unstable();
+        children.dedup();
 
         self.nodes.insert(
             id,
             GraphNode {
                 op,
                 parents,
-                children: vec![],
+                children,
             },
         );
+
+        // Update parents to point to this child (or queue if parent not yet added).
+        let parents_snapshot = self
+            .nodes
+            .get(&id)
+            .expect("Node not found after insertion")
+            .parents
+            .clone();
+        for parent_id in parents_snapshot {
+            if let Some(parent) = self.nodes.get_mut(&parent_id) {
+                parent.children.push(id);
+            } else {
+                self.pending_children.entry(parent_id).or_default().push(id);
+            }
+        }
     }
 
     fn merge_graph(&self) -> OpList {
-        let mut visited = std::collections::HashSet::new();
-        self.walk(self.root, &mut visited)
+        self.merge_graph_partial_parents()
+    }
+
+    fn merge_graph_partial_parents(&self) -> OpList {
+        use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+
+        let mut reachable = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(self.root);
+
+        while let Some(node_id) = queue.pop_front() {
+            if !reachable.insert(node_id) {
+                continue;
+            }
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            for &child_id in &node.children {
+                queue.push_back(child_id);
+            }
+        }
+
+        let mut indegree: HashMap<usize, usize> = HashMap::new();
+        for &node_id in &reachable {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            let mut count = 0usize;
+            for &parent_id in &node.parents {
+                if !self.nodes.contains_key(&parent_id) {
+                    panic!("Node {node_id} references missing parent {parent_id}");
+                }
+                if reachable.contains(&parent_id) {
+                    count += 1;
+                }
+            }
+            indegree.insert(node_id, count);
+        }
+
+        let mut ready = BTreeSet::new();
+        for (&node_id, &count) in &indegree {
+            if count == 0 {
+                ready.insert(node_id);
+            }
+        }
+
+        let mut result = OpList {
+            ops: Vec::new(),
+            test_op: None,
+        };
+        let mut processed = 0usize;
+
+        while let Some(&node_id) = ready.iter().next_back() {
+            ready.remove(&node_id);
+            processed += 1;
+
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            let node_seq = node.op.from_oplist_to_sequential_list();
+            result = node_seq.backwards_apply(&result);
+
+            for &child_id in &node.children {
+                if !reachable.contains(&child_id) {
+                    continue;
+                }
+
+                let entry = indegree
+                    .get_mut(&child_id)
+                    .unwrap_or_else(|| panic!("missing indegree entry for child {child_id}"));
+                *entry = entry
+                    .checked_sub(1)
+                    .unwrap_or_else(|| panic!("indegree underflow for child {child_id}"));
+                if *entry == 0 {
+                    ready.insert(child_id);
+                }
+            }
+        }
+
+        if processed != reachable.len() {
+            panic!("Graph is not a DAG (cycle detected?)");
+        }
+
+        result
+    }
+
+    fn find_partial_parents_and_children(&self, seed: usize) -> Option<PartialFrontier> {
+        let seed_node = self.nodes.get(&seed)?;
+
+        let start_parents: Vec<usize> = if seed_node.parents.len() >= 2 {
+            seed_node.parents.clone()
+        } else if !seed_node.children.is_empty() {
+            vec![seed]
+        } else {
+            seed_node.parents.clone()
+        };
+
+        if start_parents.is_empty() {
+            return None;
+        }
+
+        let mut partial_parents: std::collections::HashSet<usize> =
+            start_parents.into_iter().collect();
+        let mut immediate_children: std::collections::HashSet<usize> =
+            std::collections::HashSet::new();
+
+        let mut changed = true;
+        while changed {
+            changed = false;
+
+            // Down-expansion: Parents -> children.
+            let current_parents: Vec<usize> = partial_parents.iter().copied().collect();
+            for parent_id in current_parents {
+                let Some(parent) = self.nodes.get(&parent_id) else {
+                    continue;
+                };
+
+                for &child_id in &parent.children {
+                    if immediate_children.insert(child_id) {
+                        changed = true;
+                    }
+                }
+            }
+
+            // Up-expansion: Multi-parent children -> all parents.
+            let current_children: Vec<usize> = immediate_children.iter().copied().collect();
+            for child_id in current_children {
+                let Some(child) = self.nodes.get(&child_id) else {
+                    continue;
+                };
+
+                if child.parents.len() < 2 {
+                    continue;
+                }
+
+                for &parent_id in &child.parents {
+                    if partial_parents.insert(parent_id) {
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        let has_partial_parents = immediate_children.iter().any(|&child_id| {
+            self.nodes
+                .get(&child_id)
+                .is_some_and(|child| child.parents.len() >= 2)
+        });
+        if !has_partial_parents {
+            return None;
+        }
+
+        let mut partial_parents: Vec<usize> = partial_parents.into_iter().collect();
+        partial_parents.sort_unstable();
+        let mut immediate_children: Vec<usize> = immediate_children.into_iter().collect();
+        immediate_children.sort_unstable();
+
+        Some(PartialFrontier {
+            partial_parents,
+            immediate_children,
+        })
     }
 
     fn walk(&self, node_id: usize, visited: &mut std::collections::HashSet<usize>) -> OpList {
@@ -1242,6 +1449,8 @@ fn oplist_to_string(oplist: &OpList) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+    use std::collections::HashMap;
 
     /// Verifies merging sequential lists coalesce correctly for mixed insert/delete cases.
     #[test]
@@ -2266,5 +2475,523 @@ mod tests {
         let final_oplist = graph.merge_graph();
         let res = oplist_to_string(&final_oplist);
         assert_eq!(res, "ABDEC");
+    }
+
+    fn empty_oplist() -> OpList {
+        getOpList::<TestOp, 0>([])
+    }
+
+    fn assert_frontier(
+        graph: &Graph,
+        seed: usize,
+        expected_parents: &[usize],
+        expected_children: &[usize],
+    ) {
+        let frontier = graph
+            .find_partial_parents_and_children(seed)
+            .unwrap_or_else(|| panic!("expected partial frontier from seed {seed}"));
+        assert_eq!(frontier.partial_parents, expected_parents);
+        assert_eq!(frontier.immediate_children, expected_children);
+    }
+
+    #[test]
+    fn partial_frontier_root_abc_example() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        graph.add_node(1, empty_oplist(), vec![0]); // a
+        graph.add_node(2, empty_oplist(), vec![0]); // b
+        graph.add_node(3, empty_oplist(), vec![0]); // c
+
+        graph.add_node(4, empty_oplist(), vec![1]); // d
+        graph.add_node(5, empty_oplist(), vec![1, 2]); // e
+        graph.add_node(6, empty_oplist(), vec![2, 3]); // f
+        graph.add_node(7, empty_oplist(), vec![6]); // g
+
+        let expected_parents = [1, 2, 3];
+        let expected_children = [4, 5, 6];
+
+        for seed in [1, 2, 3, 4, 5, 6] {
+            assert_frontier(&graph, seed, &expected_parents, &expected_children);
+        }
+
+        assert!(graph.find_partial_parents_and_children(0).is_none());
+        assert!(graph.find_partial_parents_and_children(7).is_none());
+    }
+
+    #[test]
+    fn partial_frontier_none_for_simple_chain() {
+        let mut graph = Graph::new(0, empty_oplist());
+        graph.add_node(1, empty_oplist(), vec![0]);
+        graph.add_node(2, empty_oplist(), vec![1]);
+
+        assert!(graph.find_partial_parents_and_children(0).is_none());
+        assert!(graph.find_partial_parents_and_children(1).is_none());
+        assert!(graph.find_partial_parents_and_children(2).is_none());
+    }
+
+    #[test]
+    fn partial_frontier_simple_diamond() {
+        let mut graph = Graph::new(0, empty_oplist());
+        graph.add_node(1, empty_oplist(), vec![0]);
+        graph.add_node(3, empty_oplist(), vec![0]);
+        graph.add_node(2, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+
+        let expected_parents = [1, 3];
+        let expected_children = [2, 4];
+
+        for seed in [1, 2, 3, 4] {
+            assert_frontier(&graph, seed, &expected_parents, &expected_children);
+        }
+    }
+
+    #[test]
+    fn partial_frontier_recursive_case() {
+        let mut graph = Graph::new(0, empty_oplist());
+        graph.add_node(1, empty_oplist(), vec![0]);
+        graph.add_node(3, empty_oplist(), vec![0]);
+        graph.add_node(2, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        graph.add_node(5, empty_oplist(), vec![2]);
+        graph.add_node(6, empty_oplist(), vec![2, 4]);
+
+        assert_frontier(&graph, 1, &[1, 3], &[2, 4]);
+        assert_frontier(&graph, 4, &[1, 3], &[2, 4]);
+
+        for seed in [2, 5, 6] {
+            assert_frontier(&graph, seed, &[2, 4], &[5, 6]);
+        }
+    }
+
+    #[test]
+    fn partial_frontier_multiple_partial_parents_case() {
+        let mut graph = Graph::new(0, empty_oplist());
+        graph.add_node(1, empty_oplist(), vec![0]);
+        graph.add_node(3, empty_oplist(), vec![0]);
+        graph.add_node(7, empty_oplist(), vec![0]);
+
+        graph.add_node(2, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        graph.add_node(8, empty_oplist(), vec![1, 3, 7]);
+
+        graph.add_node(5, empty_oplist(), vec![2]);
+        graph.add_node(6, empty_oplist(), vec![2, 4]);
+        graph.add_node(9, empty_oplist(), vec![2, 4, 8]);
+
+        for seed in [1, 3, 7, 8] {
+            assert_frontier(&graph, seed, &[1, 3, 7], &[2, 4, 8]);
+        }
+
+        assert_frontier(&graph, 4, &[1, 3, 7], &[2, 4, 8]);
+
+        for seed in [2, 5, 6, 9] {
+            assert_frontier(&graph, seed, &[2, 4, 8], &[5, 6, 9]);
+        }
+    }
+
+    #[test]
+    fn partial_frontier_cross_merge_case() {
+        let mut graph = Graph::new(0, empty_oplist());
+        graph.add_node(1, empty_oplist(), vec![0]);
+        graph.add_node(2, empty_oplist(), vec![0]);
+
+        graph.add_node(3, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1]);
+
+        graph.add_node(5, empty_oplist(), vec![3]);
+        graph.add_node(6, empty_oplist(), vec![3, 4]);
+        graph.add_node(7, empty_oplist(), vec![4, 2]);
+
+        assert!(graph.find_partial_parents_and_children(1).is_none());
+
+        for seed in [2, 3, 4, 5, 6, 7] {
+            assert_frontier(&graph, seed, &[2, 3, 4], &[5, 6, 7]);
+        }
+    }
+
+    const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+    fn digit_op(id: usize) -> OpList {
+        getOpList([(0, DIGITS[id])])
+    }
+
+    fn assert_digit_multiset(actual: &str, expected_ids: &[usize]) {
+        let mut got: Vec<char> = actual.chars().collect();
+        got.sort_unstable();
+
+        let mut want: Vec<char> = expected_ids
+            .iter()
+            .copied()
+            .map(|id| char::from(b'0' + id as u8))
+            .collect();
+        want.sort_unstable();
+
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn merge_graph_partial_parents_scenarios_include_all_nodes() {
+        // Scenario 1: start->1,3; 1->2,4; 3->4;
+        let mut g1_a = Graph::new(0, digit_op(0));
+        g1_a.add_node(1, digit_op(1), vec![0]);
+        g1_a.add_node(2, digit_op(2), vec![1]);
+        g1_a.add_node(3, digit_op(3), vec![0]);
+        g1_a.add_node(4, digit_op(4), vec![1, 3]);
+        let res = oplist_to_string(&g1_a.merge_graph());
+        assert_digit_multiset(&res, &[0, 1, 2, 3, 4]);
+
+        let mut g1_b = Graph::new(0, digit_op(0));
+        g1_b.add_node(4, digit_op(4), vec![1, 3]);
+        g1_b.add_node(3, digit_op(3), vec![0]);
+        g1_b.add_node(2, digit_op(2), vec![1]);
+        g1_b.add_node(1, digit_op(1), vec![0]);
+        let res_b = oplist_to_string(&g1_b.merge_graph());
+        assert_eq!(res_b, res);
+
+        // Scenario 2: start->1,3; 1->2,4; 3->4; 2->5,6; 4->6;
+        let mut g2_a = Graph::new(0, digit_op(0));
+        g2_a.add_node(1, digit_op(1), vec![0]);
+        g2_a.add_node(2, digit_op(2), vec![1]);
+        g2_a.add_node(3, digit_op(3), vec![0]);
+        g2_a.add_node(4, digit_op(4), vec![1, 3]);
+        g2_a.add_node(5, digit_op(5), vec![2]);
+        g2_a.add_node(6, digit_op(6), vec![2, 4]);
+        let res = oplist_to_string(&g2_a.merge_graph());
+        assert_digit_multiset(&res, &[0, 1, 2, 3, 4, 5, 6]);
+
+        let mut g2_b = Graph::new(0, digit_op(0));
+        for (id, parents) in [
+            (6, vec![2, 4]),
+            (4, vec![1, 3]),
+            (2, vec![1]),
+            (5, vec![2]),
+            (3, vec![0]),
+            (1, vec![0]),
+        ] {
+            g2_b.add_node(id, digit_op(id), parents);
+        }
+        let res_b = oplist_to_string(&g2_b.merge_graph());
+        assert_eq!(res_b, res);
+
+        // Scenario 3: start->1,3,7; 1->2,8,4; 3->4,8; 2->5,6,9; 4->6,9; 7->8; 8->9;
+        let mut g3_a = Graph::new(0, digit_op(0));
+        g3_a.add_node(1, digit_op(1), vec![0]);
+        g3_a.add_node(2, digit_op(2), vec![1]);
+        g3_a.add_node(3, digit_op(3), vec![0]);
+        g3_a.add_node(4, digit_op(4), vec![1, 3]);
+        g3_a.add_node(5, digit_op(5), vec![2]);
+        g3_a.add_node(6, digit_op(6), vec![2, 4]);
+        g3_a.add_node(7, digit_op(7), vec![0]);
+        g3_a.add_node(8, digit_op(8), vec![1, 3, 7]);
+        g3_a.add_node(9, digit_op(9), vec![2, 4, 8]);
+        let res = oplist_to_string(&g3_a.merge_graph());
+        assert_digit_multiset(&res, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        let mut g3_b = Graph::new(0, digit_op(0));
+        for (id, parents) in [
+            (9, vec![2, 4, 8]),
+            (8, vec![1, 3, 7]),
+            (7, vec![0]),
+            (6, vec![2, 4]),
+            (5, vec![2]),
+            (4, vec![1, 3]),
+            (3, vec![0]),
+            (2, vec![1]),
+            (1, vec![0]),
+        ] {
+            g3_b.add_node(id, digit_op(id), parents);
+        }
+        let res_b = oplist_to_string(&g3_b.merge_graph());
+        assert_eq!(res_b, res);
+
+        // Scenario 4: start->1,2; 1->3,4; 3->5,6; 4->6,7; 2->7;
+        let mut g4_a = Graph::new(0, digit_op(0));
+        g4_a.add_node(1, digit_op(1), vec![0]);
+        g4_a.add_node(2, digit_op(2), vec![0]);
+        g4_a.add_node(3, digit_op(3), vec![1]);
+        g4_a.add_node(4, digit_op(4), vec![1]);
+        g4_a.add_node(5, digit_op(5), vec![3]);
+        g4_a.add_node(6, digit_op(6), vec![3, 4]);
+        g4_a.add_node(7, digit_op(7), vec![2, 4]);
+        let res = oplist_to_string(&g4_a.merge_graph());
+        assert_digit_multiset(&res, &[0, 1, 2, 3, 4, 5, 6, 7]);
+
+        let mut g4_b = Graph::new(0, digit_op(0));
+        for (id, parents) in [
+            (7, vec![2, 4]),
+            (6, vec![3, 4]),
+            (5, vec![3]),
+            (4, vec![1]),
+            (3, vec![1]),
+            (2, vec![0]),
+            (1, vec![0]),
+        ] {
+            g4_b.add_node(id, digit_op(id), parents);
+        }
+        let res_b = oplist_to_string(&g4_b.merge_graph());
+        assert_eq!(res_b, res);
+    }
+
+    #[derive(Clone, Debug)]
+    struct NodeSpec {
+        id: usize,
+        parents: Vec<usize>,
+        op: OpList,
+    }
+
+    #[derive(Debug)]
+    struct Replica {
+        graph: Graph,
+        pending: HashMap<usize, NodeSpec>,
+    }
+
+    impl Replica {
+        fn new(root_id: usize, root_op: OpList) -> Self {
+            Self {
+                graph: Graph::new(root_id, root_op),
+                pending: HashMap::new(),
+            }
+        }
+
+        fn deliver(&mut self, node: NodeSpec) {
+            if self.graph.nodes.contains_key(&node.id) {
+                return;
+            }
+
+            if node
+                .parents
+                .iter()
+                .all(|parent| self.graph.nodes.contains_key(parent))
+            {
+                self.graph
+                    .add_node(node.id, node.op.clone(), node.parents.clone());
+                self.flush_pending();
+            } else {
+                self.pending.insert(node.id, node);
+            }
+        }
+
+        fn flush_pending(&mut self) {
+            loop {
+                let ready_ids: Vec<usize> = self
+                    .pending
+                    .iter()
+                    .filter_map(|(&id, spec)| {
+                        spec.parents
+                            .iter()
+                            .all(|parent| self.graph.nodes.contains_key(parent))
+                            .then_some(id)
+                    })
+                    .collect();
+                if ready_ids.is_empty() {
+                    break;
+                }
+                for id in ready_ids {
+                    let spec = self.pending.remove(&id).expect("pending missing");
+                    self.graph
+                        .add_node(spec.id, spec.op.clone(), spec.parents.clone());
+                }
+            }
+        }
+
+        fn merge(&self) -> OpList {
+            self.graph.merge_graph()
+        }
+    }
+
+    fn scenario_specs_1() -> Vec<NodeSpec> {
+        vec![
+            NodeSpec {
+                id: 1,
+                parents: vec![0],
+                op: digit_op(1),
+            },
+            NodeSpec {
+                id: 3,
+                parents: vec![0],
+                op: digit_op(3),
+            },
+            NodeSpec {
+                id: 2,
+                parents: vec![1],
+                op: digit_op(2),
+            },
+            NodeSpec {
+                id: 4,
+                parents: vec![1, 3],
+                op: digit_op(4),
+            },
+        ]
+    }
+
+    fn scenario_specs_2() -> Vec<NodeSpec> {
+        vec![
+            NodeSpec {
+                id: 1,
+                parents: vec![0],
+                op: digit_op(1),
+            },
+            NodeSpec {
+                id: 3,
+                parents: vec![0],
+                op: digit_op(3),
+            },
+            NodeSpec {
+                id: 2,
+                parents: vec![1],
+                op: digit_op(2),
+            },
+            NodeSpec {
+                id: 4,
+                parents: vec![1, 3],
+                op: digit_op(4),
+            },
+            NodeSpec {
+                id: 5,
+                parents: vec![2],
+                op: digit_op(5),
+            },
+            NodeSpec {
+                id: 6,
+                parents: vec![2, 4],
+                op: digit_op(6),
+            },
+        ]
+    }
+
+    fn scenario_specs_3() -> Vec<NodeSpec> {
+        vec![
+            NodeSpec {
+                id: 1,
+                parents: vec![0],
+                op: digit_op(1),
+            },
+            NodeSpec {
+                id: 3,
+                parents: vec![0],
+                op: digit_op(3),
+            },
+            NodeSpec {
+                id: 7,
+                parents: vec![0],
+                op: digit_op(7),
+            },
+            NodeSpec {
+                id: 2,
+                parents: vec![1],
+                op: digit_op(2),
+            },
+            NodeSpec {
+                id: 4,
+                parents: vec![1, 3],
+                op: digit_op(4),
+            },
+            NodeSpec {
+                id: 8,
+                parents: vec![1, 3, 7],
+                op: digit_op(8),
+            },
+            NodeSpec {
+                id: 5,
+                parents: vec![2],
+                op: digit_op(5),
+            },
+            NodeSpec {
+                id: 6,
+                parents: vec![2, 4],
+                op: digit_op(6),
+            },
+            NodeSpec {
+                id: 9,
+                parents: vec![2, 4, 8],
+                op: digit_op(9),
+            },
+        ]
+    }
+
+    fn scenario_specs_4() -> Vec<NodeSpec> {
+        vec![
+            NodeSpec {
+                id: 1,
+                parents: vec![0],
+                op: digit_op(1),
+            },
+            NodeSpec {
+                id: 2,
+                parents: vec![0],
+                op: digit_op(2),
+            },
+            NodeSpec {
+                id: 3,
+                parents: vec![1],
+                op: digit_op(3),
+            },
+            NodeSpec {
+                id: 4,
+                parents: vec![1],
+                op: digit_op(4),
+            },
+            NodeSpec {
+                id: 5,
+                parents: vec![3],
+                op: digit_op(5),
+            },
+            NodeSpec {
+                id: 6,
+                parents: vec![3, 4],
+                op: digit_op(6),
+            },
+            NodeSpec {
+                id: 7,
+                parents: vec![2, 4],
+                op: digit_op(7),
+            },
+        ]
+    }
+
+    fn run_convergence_trials(specs: Vec<NodeSpec>, seed: u64) {
+        let root_id = 0;
+        let root_op = digit_op(0);
+
+        let mut by_id: HashMap<usize, NodeSpec> = HashMap::new();
+        for spec in specs {
+            by_id.insert(spec.id, spec);
+        }
+        let ids: Vec<usize> = by_id.keys().copied().collect();
+
+        let mut baseline_ids = ids.clone();
+        baseline_ids.sort_unstable();
+
+        let mut baseline_replica = Replica::new(root_id, root_op.clone());
+        for id in &baseline_ids {
+            baseline_replica.deliver(by_id.get(id).unwrap().clone());
+        }
+        let baseline = baseline_replica.merge();
+
+        let mut rng = StdRng::seed_from_u64(seed);
+        for _trial in 0..50 {
+            let mut replica = Replica::new(root_id, root_op.clone());
+            let mut order = ids.clone();
+            order.shuffle(&mut rng);
+
+            for id in order {
+                replica.deliver(by_id.get(&id).unwrap().clone());
+                // Ensure intermediate merges don't panic.
+                if rng.gen_ratio(1, 5) {
+                    let _ = replica.merge();
+                }
+            }
+
+            assert!(replica.pending.is_empty(), "replica still has pending nodes");
+            assert_eq!(replica.merge(), baseline);
+        }
+    }
+
+    #[test]
+    fn convergence_multiple_replicas_random_delivery() {
+        run_convergence_trials(scenario_specs_1(), 0xC0FFEE01);
+        run_convergence_trials(scenario_specs_2(), 0xC0FFEE02);
+        run_convergence_trials(scenario_specs_3(), 0xC0FFEE03);
+        run_convergence_trials(scenario_specs_4(), 0xC0FFEE04);
     }
 }
