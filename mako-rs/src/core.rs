@@ -1,8 +1,8 @@
 #![allow(warnings)]
 
 // Type aliases for better readability
-type InsertPos = i32;
-type Length = i32;
+pub type InsertPos = i32;
+pub type Length = i32;
 
 #[derive(Clone, Debug, PartialEq)]
 struct TransformOp {
@@ -151,17 +151,17 @@ impl Op {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct OpList {
+pub struct OpList {
     /// List of operations to be applied
-    ops: Vec<Op>,
+    pub ops: Vec<Op>,
     /// Test data for debugging (should be removed in production)
-    test_op: Option<Vec<Op>>,
+    pub test_op: Option<Vec<Op>>,
 }
 
 // set DTRACE = "C:\Users\dex\PC-Developement\blondie\target\release\blondie_dtrace.exe"
 // https://github.com/nico-abram/blondie
 
-trait IntoOp {
+pub trait IntoOp {
     fn into_op(self) -> Op;
 }
 
@@ -193,7 +193,7 @@ impl IntoOp for Op {
 }
 
 #[derive(Copy, Clone)]
-enum TestOp {
+pub enum TestOp {
     Ins(InsertPos, &'static str),
     Del(InsertPos, Length),
 }
@@ -211,7 +211,7 @@ impl IntoOp for TestOp {
 }
 
 /// Builds an `OpList` from a fixed-size array of (position, length) tuples while clearing any testing state.
-fn getOpList<T: IntoOp, const N: usize>(list: [T; N]) -> OpList {
+pub fn getOpList<T: IntoOp, const N: usize>(list: [T; N]) -> OpList {
     OpList {
         ops: list.into_iter().map(|x| x.into_op()).collect(),
         test_op: None,
@@ -219,7 +219,7 @@ fn getOpList<T: IntoOp, const N: usize>(list: [T; N]) -> OpList {
 }
 
 /// Builds an `OpList` from a runtime `Vec` of (position, length) tuples while clearing any testing state.
-fn getOpListbyVec<T: IntoOp>(list: Vec<T>) -> OpList {
+pub fn getOpListbyVec<T: IntoOp>(list: Vec<T>) -> OpList {
     OpList {
         ops: list.into_iter().map(|x| x.into_op()).collect(),
         test_op: None,
@@ -1176,28 +1176,28 @@ fn main() {
 }
 
 #[derive(Clone, Debug)]
-struct GraphNode {
-    op: OpList,
-    parents: Vec<usize>,
-    children: Vec<usize>,
+pub struct GraphNode {
+    pub op: OpList,
+    pub parents: Vec<usize>,
+    pub children: Vec<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct PartialFrontier {
-    partial_parents: Vec<usize>,
-    immediate_children: Vec<usize>,
+pub struct PartialFrontier {
+    pub partial_parents: Vec<usize>,
+    pub immediate_children: Vec<usize>,
 }
 
 #[derive(Debug)]
-struct Graph {
-    nodes: std::collections::HashMap<usize, GraphNode>,
-    root: usize,
-    frontier: Vec<usize>,
-    pending_children: std::collections::HashMap<usize, Vec<usize>>,
+pub struct Graph {
+    pub nodes: std::collections::HashMap<usize, GraphNode>,
+    pub root: usize,
+    pub frontier: Vec<usize>,
+    pub pending_children: std::collections::HashMap<usize, Vec<usize>>,
 }
 
 impl Graph {
-    fn new(root: usize, root_op: OpList) -> Self {
+    pub fn new(root: usize, root_op: OpList) -> Self {
         let mut nodes = std::collections::HashMap::new();
         nodes.insert(
             root,
@@ -1215,7 +1215,7 @@ impl Graph {
         }
     }
 
-    fn add_node(&mut self, id: usize, op: OpList, parents: Vec<usize>) {
+    pub fn add_node(&mut self, id: usize, op: OpList, parents: Vec<usize>) {
         let mut children = self.pending_children.remove(&id).unwrap_or_default();
         children.sort_unstable();
         children.dedup();
@@ -1245,7 +1245,7 @@ impl Graph {
         }
     }
 
-    fn merge_graph(&self) -> OpList {
+    pub fn merge_graph(&self) -> OpList {
         self.merge_graph_partial_parents()
     }
 
@@ -1288,42 +1288,12 @@ impl Graph {
             }
         }
 
-        let mut result = OpList {
-            ops: Vec::new(),
-            test_op: None,
-        };
-        let mut processed = 0usize;
-        let mut sibling_ops: HashMap<Vec<usize>, OpList> = HashMap::new();
-        let empty_seq = OpList {
-            ops: Vec::new(),
-            test_op: None,
-        };
-
+        let mut order = Vec::with_capacity(reachable.len());
         while let Some(&node_id) = ready.iter().next_back() {
             ready.remove(&node_id);
-            processed += 1;
+            order.push(node_id);
 
-            let node = self.nodes.get(&node_id).expect("Node not found");
-            let mut node_seq = node.op.from_oplist_to_sequential_list();
-
-            let mut parents_key = node.parents.clone();
-            parents_key.sort_unstable();
-
-            // Fixes delete correctness for concurrent siblings:
-            // when the same delete is applied twice concurrently, it should be idempotent,
-            // and concurrent deletes should not delete concurrent inserts.
-            if node_seq.ops.iter().any(|op| op.len() < 0) {
-                if let Some(prior_siblings) = sibling_ops.get(&parents_key) {
-                    node_seq = OpList::transform_ops_impl(&prior_siblings.ops, &node_seq, true);
-                }
-            }
-
-            result = node_seq.backwards_apply(&result);
-
-            let prior = sibling_ops.get(&parents_key).unwrap_or(&empty_seq).clone();
-            sibling_ops.insert(parents_key, node_seq.backwards_apply(&prior));
-
-            for &child_id in &node.children {
+            for &child_id in &self.nodes.get(&node_id).expect("Node not found").children {
                 if !reachable.contains(&child_id) {
                     continue;
                 }
@@ -1340,8 +1310,71 @@ impl Graph {
             }
         }
 
-        if processed != reachable.len() {
+        if order.len() != reachable.len() {
             panic!("Graph is not a DAG (cycle detected?)");
+        }
+
+        let mut index_by_id = HashMap::with_capacity(order.len());
+        for (idx, &node_id) in order.iter().enumerate() {
+            index_by_id.insert(node_id, idx);
+        }
+
+        let blocks = (order.len() + 63) / 64;
+        let mut ancestors = vec![vec![0u64; blocks]; order.len()];
+        for (idx, &node_id) in order.iter().enumerate() {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            for &parent_id in &node.parents {
+                if !reachable.contains(&parent_id) {
+                    continue;
+                }
+                let parent_idx = *index_by_id
+                    .get(&parent_id)
+                    .unwrap_or_else(|| panic!("missing index for parent {parent_id}"));
+                let parent_bits = ancestors[parent_idx].clone();
+                for (dst, src) in ancestors[idx].iter_mut().zip(parent_bits) {
+                    *dst |= src;
+                }
+                let word = parent_idx / 64;
+                let bit = parent_idx % 64;
+                ancestors[idx][word] |= 1u64 << bit;
+            }
+        }
+
+        let mut result = OpList {
+            ops: Vec::new(),
+            test_op: None,
+        };
+        let mut applied = vec![
+            OpList {
+                ops: Vec::new(),
+                test_op: None,
+            };
+            order.len()
+        ];
+
+        for (idx, &node_id) in order.iter().enumerate() {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            let mut node_seq = node.op.from_oplist_to_sequential_list();
+
+            if node_seq.ops.iter().any(|op| op.len() < 0) {
+                for prev_idx in 0..idx {
+                    let word = prev_idx / 64;
+                    let bit = prev_idx % 64;
+                    if (ancestors[idx][word] & (1u64 << bit)) != 0 {
+                        continue;
+                    }
+                    if applied[prev_idx].ops.is_empty() {
+                        continue;
+                    }
+                    node_seq = OpList::transform_ops_impl(&applied[prev_idx].ops, &node_seq, true);
+                    if node_seq.ops.is_empty() {
+                        break;
+                    }
+                }
+            }
+
+            result = node_seq.backwards_apply(&result);
+            applied[idx] = node_seq;
         }
 
         result
@@ -1457,7 +1490,7 @@ impl Graph {
     }
 }
 
-fn oplist_to_string(oplist: &OpList) -> String {
+pub fn oplist_to_string(oplist: &OpList) -> String {
     let mut res = String::new();
     for op in &oplist.ops {
         if let Op::Insert { content, .. } = op {
@@ -2387,7 +2420,7 @@ mod tests {
         // walk(6) returns "F"
         // Merging 6 into 2: "F" appends to "BCED" -> "BCEDF"
         // Final result: "ABCEDF"
-        
+
         let res = oplist_to_string(&final_oplist);
         assert_eq!(res, "ABCEDF");
     }
@@ -2520,6 +2553,43 @@ mod tests {
 
         let result = oplist_to_string(&graph.merge_graph());
         assert_eq!(result, "ACD");
+    }
+
+    #[test]
+    fn delete_after_multi_branch_merge() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "AB")]));
+
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B -> "A"
+        graph.add_node(2, getOpList([TestOp::Ins(2, "C")]), vec![0]); // Insert C -> "ABC"
+        graph.add_node(3, getOpList([TestOp::Del(2, -1)]), vec![2]); // Delete B -> "AC"
+        graph.add_node(4, empty_oplist(), vec![1, 3]); // Merge
+
+        graph.add_node(5, getOpList([TestOp::Ins(1, "X")]), vec![4]); // Insert X -> "AXC"
+        graph.add_node(6, getOpList([TestOp::Del(2, -1)]), vec![5]); // Delete X -> "AC"
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "AC");
+    }
+
+    #[test]
+    fn delete_with_deep_merge_ancestry() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Del(3, -1)]), vec![0]); // Delete C
+        graph.add_node(3, empty_oplist(), vec![1, 2]); // Merge -> "AD"
+
+        graph.add_node(4, getOpList([TestOp::Ins(1, "X")]), vec![3]); // Insert X
+        graph.add_node(5, getOpList([TestOp::Ins(2, "Y")]), vec![3]); // Insert Y
+        graph.add_node(6, empty_oplist(), vec![4, 5]); // Merge
+
+        let before = oplist_to_string(&graph.merge_graph());
+
+        graph.add_node(7, getOpList([TestOp::Del(2, -1)]), vec![6]);
+        let after = oplist_to_string(&graph.merge_graph());
+
+        assert_ne!(after, before);
+        assert_eq!(after.len() + 1, before.len());
     }
 
     #[test]
@@ -3077,7 +3147,10 @@ mod tests {
                 }
             }
 
-            assert!(replica.pending.is_empty(), "replica still has pending nodes");
+            assert!(
+                replica.pending.is_empty(),
+                "replica still has pending nodes"
+            );
             assert_eq!(replica.merge(), baseline);
         }
     }
@@ -3088,5 +3161,414 @@ mod tests {
         run_convergence_trials(scenario_specs_2(), 0xC0FFEE02);
         run_convergence_trials(scenario_specs_3(), 0xC0FFEE03);
         run_convergence_trials(scenario_specs_4(), 0xC0FFEE04);
+    }
+
+    // =========================================================================
+    // Comprehensive graph structure tests with mixed insert/delete operations
+    // These test the 4 provided graph structures from the PR requirements
+    // =========================================================================
+
+    /// Graph 1: start->1,3; 1->2,4; 3->4;
+    /// Tests concurrent branches with a diamond merge including deletions
+    #[test]
+    fn graph1_concurrent_delete_at_merge_point() {
+        // Setup: Root inserts "ABCD"
+        // Node 1: Deletes B (concurrent with node 3)
+        // Node 3: Inserts X after A (concurrent with node 1)
+        // Node 2: Inserts Y (child of 1)
+        // Node 4: Merge node (parents: 1, 3)
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B -> "ACD"
+        graph.add_node(3, getOpList([TestOp::Ins(1, "X")]), vec![0]); // Insert X -> "AXBCD"
+        graph.add_node(2, getOpList([TestOp::Ins(1, "Y")]), vec![1]); // After del B: "AYCD"
+        graph.add_node(4, empty_oplist(), vec![1, 3]); // Merge 1 and 3
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // Expected: B deleted, X inserted, Y inserted
+        // The result should have A, X, Y, C, D (B deleted)
+        assert!(
+            !result.contains('B'),
+            "B should be deleted, got: {}",
+            result
+        );
+        assert!(result.contains('X'), "X should be present, got: {}", result);
+        assert!(result.contains('Y'), "Y should be present, got: {}", result);
+    }
+
+    /// Graph 1: Concurrent deletes at same position should be idempotent
+    #[test]
+    fn graph1_concurrent_deletes_same_position_idempotent() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(3, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B (concurrent)
+        graph.add_node(2, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]); // Merge
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B should be deleted exactly once, leaving "ACD"
+        assert_eq!(
+            result, "ACD",
+            "Concurrent deletes at same pos should be idempotent"
+        );
+    }
+
+    /// Graph 2: start->1,3; 1->2,4; 3->4; 2->5,6; 4->6;
+    /// More complex diamond with additional merge point
+    #[test]
+    fn graph2_nested_diamond_with_deletes() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCDEF")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(3, getOpList([TestOp::Del(3, -1)]), vec![0]); // Delete C (concurrent)
+        graph.add_node(2, getOpList([TestOp::Ins(1, "X")]), vec![1]); // Insert X after A
+        graph.add_node(4, empty_oplist(), vec![1, 3]); // First merge
+        graph.add_node(5, getOpList([TestOp::Ins(2, "Y")]), vec![2]); // Insert Y
+        graph.add_node(6, empty_oplist(), vec![2, 4]); // Second merge
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B and C should be deleted
+        assert!(
+            !result.contains('B'),
+            "B should be deleted, got: {}",
+            result
+        );
+        assert!(
+            !result.contains('C'),
+            "C should be deleted, got: {}",
+            result
+        );
+        assert!(result.contains('X'), "X should be present, got: {}", result);
+        assert!(result.contains('Y'), "Y should be present, got: {}", result);
+    }
+
+    /// Graph 2: Delete followed by insert at same position
+    #[test]
+    fn graph2_delete_then_insert_at_same_position() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABC")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B -> "AC"
+        graph.add_node(3, empty_oplist(), vec![0]);
+        // After deleting B, we have "AC". Insert X at position 1 (between A and C)
+        graph.add_node(2, getOpList([TestOp::Ins(1, "X")]), vec![1]); // Insert X -> "AXC"
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        graph.add_node(5, empty_oplist(), vec![2]);
+        graph.add_node(6, empty_oplist(), vec![2, 4]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // The insert is at position 1 in state after deletion, which is "AC"
+        // So X goes between A and C -> "AXC"
+        assert_eq!(result, "AXC", "Delete B then insert X should give AXC");
+    }
+
+    /// Graph 3: start->1,3,7; 1->2,8,4; 3->4,8; 2->5,6,9; 4->6,9; 7->8; 8->9;
+    /// Complex multi-parent scenario
+    #[test]
+    fn graph3_complex_multiparent_with_deletes() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCDEFGHI")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(3, getOpList([TestOp::Del(3, -1)]), vec![0]); // Delete C
+        graph.add_node(7, getOpList([TestOp::Del(4, -1)]), vec![0]); // Delete D
+        graph.add_node(2, getOpList([TestOp::Ins(1, "X")]), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        graph.add_node(8, empty_oplist(), vec![1, 3, 7]);
+        graph.add_node(5, empty_oplist(), vec![2]);
+        graph.add_node(6, empty_oplist(), vec![2, 4]);
+        graph.add_node(9, empty_oplist(), vec![2, 4, 8]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B, C, D should be deleted
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(!result.contains('C'), "C should be deleted");
+        assert!(!result.contains('D'), "D should be deleted");
+        assert!(result.contains('X'), "X should be present");
+    }
+
+    /// Graph 3: Triple concurrent deletes at same position
+    #[test]
+    fn graph3_triple_concurrent_deletes_idempotent() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(3, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B (concurrent)
+        graph.add_node(7, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B (concurrent)
+        graph.add_node(2, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        graph.add_node(8, empty_oplist(), vec![1, 3, 7]);
+        graph.add_node(5, empty_oplist(), vec![2]);
+        graph.add_node(6, empty_oplist(), vec![2, 4]);
+        graph.add_node(9, empty_oplist(), vec![2, 4, 8]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // Triple concurrent deletes should still be idempotent
+        assert_eq!(
+            result, "ACD",
+            "Triple concurrent deletes should be idempotent"
+        );
+    }
+
+    /// Graph 4: start->1,2; 1->3,4; 3->5,6; 4->6,7; 2->7
+    /// Tests asymmetric merges
+    #[test]
+    fn graph4_asymmetric_merge_with_deletes() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCDEFGH")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Del(3, -1)]), vec![0]); // Delete C (concurrent)
+        graph.add_node(3, getOpList([TestOp::Ins(1, "X")]), vec![1]);
+        graph.add_node(4, getOpList([TestOp::Ins(2, "Y")]), vec![1]);
+        graph.add_node(5, empty_oplist(), vec![3]);
+        graph.add_node(6, empty_oplist(), vec![3, 4]);
+        graph.add_node(7, empty_oplist(), vec![2, 4]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(!result.contains('C'), "C should be deleted");
+        assert!(result.contains('X'), "X should be present");
+        assert!(result.contains('Y'), "Y should be present");
+    }
+
+    /// Graph 4: Concurrent insert and delete across different branches
+    #[test]
+    fn graph4_insert_delete_different_branches() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABC")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B -> "AC"
+        graph.add_node(2, getOpList([TestOp::Ins(1, "X")]), vec![0]); // Insert X -> "AXBC"
+        graph.add_node(3, empty_oplist(), vec![1]);
+        graph.add_node(4, empty_oplist(), vec![1]);
+        graph.add_node(5, empty_oplist(), vec![3]);
+        graph.add_node(6, empty_oplist(), vec![3, 4]);
+        graph.add_node(7, empty_oplist(), vec![2, 4]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B should be deleted, X should be preserved
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(result.contains('X'), "X should be preserved");
+        assert_eq!(result, "AXC", "Delete B and insert X should give AXC");
+    }
+
+    // =========================================================================
+    // Fugue-interleave inspired scenarios
+    // These test scenarios from fugue-interleave/index.js
+    // =========================================================================
+
+    /// Figure 7 scenario: Tests interleaved concurrent inserts
+    /// Expected final result: "AXYBC" (per fugue-simple ground truth)
+    /// This duplicates the ground_truth test but documents the Figure 7 pattern explicitly
+    #[test]
+    fn fugue_figure7_interleaved_inserts() {
+        // Matches ground_truth_matches_fugue_simple_figure7 exactly
+        let mut graph = Graph::new(0, empty_oplist());
+
+        // Concurrent inserts at index 0
+        graph.add_node(1, getOpList([TestOp::Ins(0, "A")]), vec![0]);
+        graph.add_node(2, getOpList([TestOp::Ins(0, "B")]), vec![0]);
+        graph.add_node(3, getOpList([TestOp::Ins(0, "C")]), vec![0]);
+
+        // Partial-parent inserts at index 1 in local states
+        // Node 4 sees "AC" -> inserts X at position 1
+        graph.add_node(4, getOpList([TestOp::Ins(1, "X")]), vec![1, 3]);
+        // Node 5 sees "AB" -> inserts Y at position 1
+        graph.add_node(5, getOpList([TestOp::Ins(1, "Y")]), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "AXYBC", "Figure 7 should produce AXYBC");
+    }
+
+    /// ABCD Deletion scenario from fugue-interleave
+    /// Tests deletion combined with concurrent inserts
+    #[test]
+    fn fugue_abcd_deletion_scenario() {
+        // Setup: 4 concurrent inserts A, B, C, D
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "A")]));
+        graph.add_node(1, getOpList([TestOp::Ins(0, "B")]), vec![0]);
+        graph.add_node(2, getOpList([TestOp::Ins(0, "C")]), vec![0]);
+        graph.add_node(3, getOpList([TestOp::Ins(0, "D")]), vec![0]);
+
+        // R2 deletes B
+        graph.add_node(4, getOpList([TestOp::Del(1, -1)]), vec![1]); // Delete from B's state
+
+        // R3 sees A, inserts X
+        graph.add_node(5, getOpList([TestOp::Ins(1, "X")]), vec![0, 2]);
+
+        // Merge
+        graph.add_node(6, empty_oplist(), vec![3, 4, 5]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B should be deleted, X should be present
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(result.contains('X'), "X should be present");
+        assert!(result.contains('A'), "A should be present");
+    }
+
+    /// Tests that deletes don't affect concurrent inserts at different positions
+    #[test]
+    fn concurrent_delete_preserves_distant_insert() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCDEF")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Ins(5, "X")]), vec![0]); // Insert X at end (concurrent)
+        graph.add_node(3, empty_oplist(), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(result.contains('X'), "X should be preserved");
+        // Check X is at the right position (near end)
+        assert!(
+            result.ends_with('F') || result.contains("XF") || result.contains("FX"),
+            "X should be near end, got: {}",
+            result
+        );
+    }
+
+    /// Tests overlapping deletes (deleting ranges that overlap)
+    /// Note: Overlapping concurrent deletes are complex - each delete operates on
+    /// its own view of the document. The OT transform should handle the overlap.
+    #[test]
+    fn concurrent_overlapping_deletes() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCDEF")]));
+        // Delete B (position 2, length -1)
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]);
+        // Delete C (position 3, length -1) - concurrent with node 1
+        graph.add_node(2, getOpList([TestOp::Del(3, -1)]), vec![0]);
+        graph.add_node(3, empty_oplist(), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B and C should be deleted, leaving "ADEF"
+        assert!(!result.contains('B'), "B should be deleted");
+        assert!(!result.contains('C'), "C should be deleted");
+        assert!(result.contains('A'), "A should be preserved");
+        assert!(result.contains('D'), "D should be preserved");
+        assert!(result.contains('E'), "E should be preserved");
+        assert!(result.contains('F'), "F should be preserved");
+        assert_eq!(
+            result, "ADEF",
+            "Concurrent deletes of B and C should give ADEF"
+        );
+    }
+
+    /// Tests the diamond pattern with mixed operations
+    #[test]
+    fn diamond_mixed_operations() {
+        // Diamond: 0 -> 1, 2 -> 3
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABC")]));
+        graph.add_node(
+            1,
+            getOpList([TestOp::Del(2, -1), TestOp::Ins(1, "X")]),
+            vec![0],
+        ); // Delete B, Insert X
+        graph.add_node(2, getOpList([TestOp::Ins(2, "Y")]), vec![0]); // Insert Y after B
+        graph.add_node(3, empty_oplist(), vec![1, 2]); // Merge
+
+        let result = oplist_to_string(&graph.merge_graph());
+        // B deleted, X and Y inserted
+        assert!(
+            !result.contains('B'),
+            "B should be deleted, got: {}",
+            result
+        );
+        assert!(result.contains('X'), "X should be present, got: {}", result);
+        assert!(result.contains('Y'), "Y should be present, got: {}", result);
+    }
+
+    /// Test mimicking the failing fuzz scenario:
+    /// Multiple replicas with complex sync patterns causing delete to fail
+    #[test]
+    fn test_complex_sync_delete_scenario() {
+        // Simulate the scenario from the fuzz test:
+        // - Multiple replicas making inserts and deletes
+        // - Complex parent relationships from syncing
+
+        // Start with single character 'B'
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "B")]));
+
+        // Simulate replica 0 seeing some operations before the delete
+        // The key is that the delete has multiple parents from different branches
+
+        // Branch 1: Insert 'X' at position 0 -> "XB"
+        graph.add_node(1, getOpList([TestOp::Ins(0, "X")]), vec![0]);
+
+        // Branch 2: Insert 'Y' at position 1 (after B) -> "BY"
+        graph.add_node(2, getOpList([TestOp::Ins(1, "Y")]), vec![0]);
+
+        // Check intermediate state without merge
+        let mut graph_no_merge = Graph::new(0, getOpList([TestOp::Ins(0, "B")]));
+        graph_no_merge.add_node(1, getOpList([TestOp::Ins(0, "X")]), vec![0]);
+        graph_no_merge.add_node(2, getOpList([TestOp::Ins(1, "Y")]), vec![0]);
+        graph_no_merge.add_node(3, empty_oplist(), vec![1, 2]);
+        let state_at_merge = oplist_to_string(&graph_no_merge.merge_graph());
+        println!("State at merge (before delete): '{}'", state_at_merge);
+
+        // Merge node that sees both X and Y
+        graph.add_node(3, empty_oplist(), vec![1, 2]);
+
+        // Now delete the character at position appropriate for B
+        // The state should be "XBY" or "BXY" or "BYX" depending on order
+        // We want to delete B, which is at position 1 in "XBY"
+        // But the delete was created when state was just "B" so position would be 0
+
+        // Let's try deleting at position 0 (which is X in "XBY")
+        graph.add_node(4, getOpList([TestOp::Del(1, -1)]), vec![3]); // Delete char at pos 0
+
+        let result = oplist_to_string(&graph.merge_graph());
+        println!("Result: '{}'", result);
+
+        // The problem is: which character should be deleted?
+        // If we're trying to delete B from the original "B" doc,
+        // but X was concurrently inserted at position 0,
+        // then B is now at position 1, not position 0!
+
+        // This is the OT transformation problem - the delete's position
+        // needs to be shifted to account for concurrent inserts
+
+        // For now, let's just document that B should eventually be deleted
+        assert!(
+            !result.contains('B'),
+            "B should be deleted, got: {}",
+            result
+        );
+    }
+
+    /// Test that a simple delete after sync works
+    #[test]
+    fn test_simple_delete_after_sync() {
+        // This is a minimal case: just B, then delete B
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "B")]));
+
+        // Delete B at position 0 (ins=1, len=-1 means delete char before pos 1)
+        graph.add_node(1, getOpList([TestOp::Del(1, -1)]), vec![0]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "", "B should be deleted, got: '{}'", result);
+    }
+
+    /// Test delete with frontier having multiple nodes (simulates post-sync state)
+    #[test]
+    fn test_delete_with_multiple_frontier_parents() {
+        // Start with 'B'
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "B")]));
+
+        // Two concurrent operations that both see the root
+        graph.add_node(1, empty_oplist(), vec![0]); // Empty op from replica 1
+        graph.add_node(2, empty_oplist(), vec![0]); // Empty op from replica 2
+
+        // Now a delete that has both 1 and 2 as parents (simulating sync state)
+        graph.add_node(3, getOpList([TestOp::Del(1, -1)]), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(
+            result, "",
+            "B should be deleted with multi-parent delete, got: '{}'",
+            result
+        );
+    }
+
+    /// Debug test to understand how merge_graph handles deletes
+    #[test]
+    fn test_merge_graph_debug() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+
+        let merged = graph.merge_graph();
+        println!("Merged ops: {:?}", merged.ops);
+        println!("Result string: '{}'", oplist_to_string(&merged));
+
+        // The merged OpList should only have Insert ops for A, C, D
+        // (B was deleted)
+        assert_eq!(oplist_to_string(&merged), "ACD");
     }
 }

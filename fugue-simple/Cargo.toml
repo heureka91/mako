@@ -1,0 +1,6 @@
+[package]
+name = "fugue-simple"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

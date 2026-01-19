@@ -1,0 +1,13 @@
+[package]
+name = "mako-fuzz"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mako = { path = "../mako-rs", package = "mako-rs" }
+fugue-simple = { path = "../fugue-simple" }
+arbitrary = { version = "1", features = ["derive"] }
+rand = "0.8.5"
+
+[dev-dependencies]
+arbtest = "0.3"

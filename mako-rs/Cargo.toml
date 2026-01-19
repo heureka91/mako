@@ -1,0 +1,15 @@
+[package]
+name = "mako-rs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rand = "0.8.5"
+
+[lib]
+name = "mako"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mako-rs"
+path = "src/main.rs"
