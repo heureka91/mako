@@ -2496,16 +2496,16 @@ mod tests {
 
     #[test]
     fn partial_frontier_root_abc_example() {
-        let mut graph = Graph::new(0, empty_oplist());
+        let mut graph = Graph::new(0, digit_op(0));
 
-        graph.add_node(1, empty_oplist(), vec![0]); // a
-        graph.add_node(2, empty_oplist(), vec![0]); // b
-        graph.add_node(3, empty_oplist(), vec![0]); // c
+        graph.add_node(1, digit_op(1), vec![0]); // a
+        graph.add_node(2, digit_op(2), vec![0]); // b
+        graph.add_node(3, digit_op(3), vec![0]); // c
 
-        graph.add_node(4, empty_oplist(), vec![1]); // d
-        graph.add_node(5, empty_oplist(), vec![1, 2]); // e
-        graph.add_node(6, empty_oplist(), vec![2, 3]); // f
-        graph.add_node(7, empty_oplist(), vec![6]); // g
+        graph.add_node(4, digit_op(4), vec![1]); // d
+        graph.add_node(5, digit_op(5), vec![1, 2]); // e
+        graph.add_node(6, digit_op(6), vec![2, 3]); // f
+        graph.add_node(7, digit_op(7), vec![6]); // g
 
         let expected_parents = [1, 2, 3];
         let expected_children = [4, 5, 6];
@@ -2520,9 +2520,9 @@ mod tests {
 
     #[test]
     fn partial_frontier_none_for_simple_chain() {
-        let mut graph = Graph::new(0, empty_oplist());
-        graph.add_node(1, empty_oplist(), vec![0]);
-        graph.add_node(2, empty_oplist(), vec![1]);
+        let mut graph = Graph::new(0, digit_op(0));
+        graph.add_node(1, digit_op(1), vec![0]);
+        graph.add_node(2, digit_op(2), vec![1]);
 
         assert!(graph.find_partial_parents_and_children(0).is_none());
         assert!(graph.find_partial_parents_and_children(1).is_none());
@@ -2531,11 +2531,11 @@ mod tests {
 
     #[test]
     fn partial_frontier_simple_diamond() {
-        let mut graph = Graph::new(0, empty_oplist());
-        graph.add_node(1, empty_oplist(), vec![0]);
-        graph.add_node(3, empty_oplist(), vec![0]);
-        graph.add_node(2, empty_oplist(), vec![1]);
-        graph.add_node(4, empty_oplist(), vec![1, 3]);
+        let mut graph = Graph::new(0, digit_op(0));
+        graph.add_node(1, digit_op(1), vec![0]);
+        graph.add_node(3, digit_op(3), vec![0]);
+        graph.add_node(2, digit_op(2), vec![1]);
+        graph.add_node(4, digit_op(4), vec![1, 3]);
 
         let expected_parents = [1, 3];
         let expected_children = [2, 4];
@@ -2547,13 +2547,13 @@ mod tests {
 
     #[test]
     fn partial_frontier_recursive_case() {
-        let mut graph = Graph::new(0, empty_oplist());
-        graph.add_node(1, empty_oplist(), vec![0]);
-        graph.add_node(3, empty_oplist(), vec![0]);
-        graph.add_node(2, empty_oplist(), vec![1]);
-        graph.add_node(4, empty_oplist(), vec![1, 3]);
-        graph.add_node(5, empty_oplist(), vec![2]);
-        graph.add_node(6, empty_oplist(), vec![2, 4]);
+        let mut graph = Graph::new(0, digit_op(0));
+        graph.add_node(1, digit_op(1), vec![0]);
+        graph.add_node(3, digit_op(3), vec![0]);
+        graph.add_node(2, digit_op(2), vec![1]);
+        graph.add_node(4, digit_op(4), vec![1, 3]);
+        graph.add_node(5, digit_op(5), vec![2]);
+        graph.add_node(6, digit_op(6), vec![2, 4]);
 
         assert_frontier(&graph, 1, &[1, 3], &[2, 4]);
         assert_frontier(&graph, 4, &[1, 3], &[2, 4]);
@@ -2565,18 +2565,18 @@ mod tests {
 
     #[test]
     fn partial_frontier_multiple_partial_parents_case() {
-        let mut graph = Graph::new(0, empty_oplist());
-        graph.add_node(1, empty_oplist(), vec![0]);
-        graph.add_node(3, empty_oplist(), vec![0]);
-        graph.add_node(7, empty_oplist(), vec![0]);
+        let mut graph = Graph::new(0, digit_op(0));
+        graph.add_node(1, digit_op(1), vec![0]);
+        graph.add_node(3, digit_op(3), vec![0]);
+        graph.add_node(7, digit_op(7), vec![0]);
 
-        graph.add_node(2, empty_oplist(), vec![1]);
-        graph.add_node(4, empty_oplist(), vec![1, 3]);
-        graph.add_node(8, empty_oplist(), vec![1, 3, 7]);
+        graph.add_node(2, digit_op(2), vec![1]);
+        graph.add_node(4, digit_op(4), vec![1, 3]);
+        graph.add_node(8, digit_op(8), vec![1, 3, 7]);
 
-        graph.add_node(5, empty_oplist(), vec![2]);
-        graph.add_node(6, empty_oplist(), vec![2, 4]);
-        graph.add_node(9, empty_oplist(), vec![2, 4, 8]);
+        graph.add_node(5, digit_op(5), vec![2]);
+        graph.add_node(6, digit_op(6), vec![2, 4]);
+        graph.add_node(9, digit_op(9), vec![2, 4, 8]);
 
         for seed in [1, 3, 7, 8] {
             assert_frontier(&graph, seed, &[1, 3, 7], &[2, 4, 8]);
@@ -2591,16 +2591,16 @@ mod tests {
 
     #[test]
     fn partial_frontier_cross_merge_case() {
-        let mut graph = Graph::new(0, empty_oplist());
-        graph.add_node(1, empty_oplist(), vec![0]);
-        graph.add_node(2, empty_oplist(), vec![0]);
+        let mut graph = Graph::new(0, digit_op(0));
+        graph.add_node(1, digit_op(1), vec![0]);
+        graph.add_node(2, digit_op(2), vec![0]);
 
-        graph.add_node(3, empty_oplist(), vec![1]);
-        graph.add_node(4, empty_oplist(), vec![1]);
+        graph.add_node(3, digit_op(3), vec![1]);
+        graph.add_node(4, digit_op(4), vec![1]);
 
-        graph.add_node(5, empty_oplist(), vec![3]);
-        graph.add_node(6, empty_oplist(), vec![3, 4]);
-        graph.add_node(7, empty_oplist(), vec![4, 2]);
+        graph.add_node(5, digit_op(5), vec![3]);
+        graph.add_node(6, digit_op(6), vec![3, 4]);
+        graph.add_node(7, digit_op(7), vec![4, 2]);
 
         assert!(graph.find_partial_parents_and_children(1).is_none());
 
