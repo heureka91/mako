@@ -1288,41 +1288,12 @@ impl Graph {
             }
         }
 
-        let mut result = OpList {
-            ops: Vec::new(),
-            test_op: None,
-        };
-        let mut processed = 0usize;
-        let mut sibling_ops: HashMap<Vec<usize>, OpList> = HashMap::new();
-        let empty_seq = OpList {
-            ops: Vec::new(),
-            test_op: None,
-        };
-
+        let mut order = Vec::with_capacity(reachable.len());
         while let Some(&node_id) = ready.iter().next_back() {
             ready.remove(&node_id);
-            processed += 1;
+            order.push(node_id);
 
             let node = self.nodes.get(&node_id).expect("Node not found");
-            let mut node_seq = node.op.from_oplist_to_sequential_list();
-
-            let mut parents_key = node.parents.clone();
-            parents_key.sort_unstable();
-
-            // Fixes delete correctness for concurrent siblings:
-            // when the same delete is applied twice concurrently, it should be idempotent,
-            // and concurrent deletes should not delete concurrent inserts.
-            if node_seq.ops.iter().any(|op| op.len() < 0) {
-                if let Some(prior_siblings) = sibling_ops.get(&parents_key) {
-                    node_seq = OpList::transform_ops_impl(&prior_siblings.ops, &node_seq, true);
-                }
-            }
-
-            result = node_seq.backwards_apply(&result);
-
-            let prior = sibling_ops.get(&parents_key).unwrap_or(&empty_seq).clone();
-            sibling_ops.insert(parents_key, node_seq.backwards_apply(&prior));
-
             for &child_id in &node.children {
                 if !reachable.contains(&child_id) {
                     continue;
@@ -1340,8 +1311,71 @@ impl Graph {
             }
         }
 
-        if processed != reachable.len() {
+        if order.len() != reachable.len() {
             panic!("Graph is not a DAG (cycle detected?)");
+        }
+
+        let mut index_by_id = HashMap::with_capacity(order.len());
+        for (idx, &node_id) in order.iter().enumerate() {
+            index_by_id.insert(node_id, idx);
+        }
+
+        let blocks = (order.len() + 63) / 64;
+        let mut ancestors = vec![vec![0u64; blocks]; order.len()];
+        for (idx, &node_id) in order.iter().enumerate() {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            for &parent_id in &node.parents {
+                if !reachable.contains(&parent_id) {
+                    continue;
+                }
+                let parent_idx = *index_by_id
+                    .get(&parent_id)
+                    .unwrap_or_else(|| panic!("missing index for parent {parent_id}"));
+                let parent_bits = ancestors[parent_idx].clone();
+                for (dst, src) in ancestors[idx].iter_mut().zip(parent_bits) {
+                    *dst |= src;
+                }
+                let word = parent_idx / 64;
+                let bit = parent_idx % 64;
+                ancestors[idx][word] |= 1u64 << bit;
+            }
+        }
+
+        let mut result = OpList {
+            ops: Vec::new(),
+            test_op: None,
+        };
+        let mut applied = vec![
+            OpList {
+                ops: Vec::new(),
+                test_op: None,
+            };
+            order.len()
+        ];
+
+        for (idx, &node_id) in order.iter().enumerate() {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            let mut node_seq = node.op.from_oplist_to_sequential_list();
+
+            if node_seq.ops.iter().any(|op| op.len() < 0) {
+                for prev_idx in 0..idx {
+                    let word = prev_idx / 64;
+                    let bit = prev_idx % 64;
+                    if (ancestors[idx][word] & (1u64 << bit)) != 0 {
+                        continue;
+                    }
+                    if applied[prev_idx].ops.is_empty() {
+                        continue;
+                    }
+                    node_seq = OpList::transform_ops_impl(&applied[prev_idx].ops, &node_seq, true);
+                    if node_seq.ops.is_empty() {
+                        break;
+                    }
+                }
+            }
+
+            result = node_seq.backwards_apply(&result);
+            applied[idx] = node_seq;
         }
 
         result
@@ -2520,6 +2554,43 @@ mod tests {
 
         let result = oplist_to_string(&graph.merge_graph());
         assert_eq!(result, "ACD");
+    }
+
+    #[test]
+    fn delete_after_multi_branch_merge() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "AB")]));
+
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B -> "A"
+        graph.add_node(2, getOpList([TestOp::Ins(2, "C")]), vec![0]); // Insert C -> "ABC"
+        graph.add_node(3, getOpList([TestOp::Del(2, -1)]), vec![2]); // Delete B -> "AC"
+        graph.add_node(4, empty_oplist(), vec![1, 3]); // Merge
+
+        graph.add_node(5, getOpList([TestOp::Ins(1, "X")]), vec![4]); // Insert X -> "AXC"
+        graph.add_node(6, getOpList([TestOp::Del(2, -1)]), vec![5]); // Delete X -> "AC"
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "AC");
+    }
+
+    #[test]
+    fn delete_with_deep_merge_ancestry() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Del(3, -1)]), vec![0]); // Delete C
+        graph.add_node(3, empty_oplist(), vec![1, 2]); // Merge -> "AD"
+
+        graph.add_node(4, getOpList([TestOp::Ins(1, "X")]), vec![3]); // Insert X
+        graph.add_node(5, getOpList([TestOp::Ins(2, "Y")]), vec![3]); // Insert Y
+        graph.add_node(6, empty_oplist(), vec![4, 5]); // Merge
+
+        let before = oplist_to_string(&graph.merge_graph());
+
+        graph.add_node(7, getOpList([TestOp::Del(2, -1)]), vec![6]);
+        let after = oplist_to_string(&graph.merge_graph());
+
+        assert_ne!(after, before);
+        assert_eq!(after.len() + 1, before.len());
     }
 
     #[test]
