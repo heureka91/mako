@@ -2609,6 +2609,30 @@ mod tests {
         }
     }
 
+    /// Ground truth scenario based on `fugue-simple`'s Figure 7 interleaving.
+    ///
+    /// We model concurrent inserts A/B/C into an empty list, then:
+    /// - Replica A sees {A, C} and inserts X between them.
+    /// - Replica B sees {A, B} and inserts Y between them.
+    ///
+    /// `fugue-simple` produces the final order: "AXYBC" for replica IDs 0 < 1 < 2.
+    #[test]
+    fn ground_truth_matches_fugue_simple_figure7() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        // Concurrent inserts at index 0.
+        graph.add_node(1, getOpList([TestOp::Ins(0, "A")]), vec![0]);
+        graph.add_node(2, getOpList([TestOp::Ins(0, "B")]), vec![0]);
+        graph.add_node(3, getOpList([TestOp::Ins(0, "C")]), vec![0]);
+
+        // Partial-parent inserts at index 1 in the local states ("AC" and "AB").
+        graph.add_node(4, getOpList([TestOp::Ins(1, "X")]), vec![1, 3]);
+        graph.add_node(5, getOpList([TestOp::Ins(1, "Y")]), vec![1, 2]);
+
+        let merged = graph.merge_graph();
+        assert_eq!(oplist_to_string(&merged), "AXYBC");
+    }
+
     const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
     fn digit_op(id: usize) -> OpList {
