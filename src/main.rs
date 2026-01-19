@@ -1293,14 +1293,35 @@ impl Graph {
             test_op: None,
         };
         let mut processed = 0usize;
+        let mut sibling_ops: HashMap<Vec<usize>, OpList> = HashMap::new();
+        let empty_seq = OpList {
+            ops: Vec::new(),
+            test_op: None,
+        };
 
         while let Some(&node_id) = ready.iter().next_back() {
             ready.remove(&node_id);
             processed += 1;
 
             let node = self.nodes.get(&node_id).expect("Node not found");
-            let node_seq = node.op.from_oplist_to_sequential_list();
+            let mut node_seq = node.op.from_oplist_to_sequential_list();
+
+            let mut parents_key = node.parents.clone();
+            parents_key.sort_unstable();
+
+            // Fixes delete correctness for concurrent siblings:
+            // when the same delete is applied twice concurrently, it should be idempotent,
+            // and concurrent deletes should not delete concurrent inserts.
+            if node_seq.ops.iter().any(|op| op.len() < 0) {
+                if let Some(prior_siblings) = sibling_ops.get(&parents_key) {
+                    node_seq = OpList::transform_ops_impl(&prior_siblings.ops, &node_seq, true);
+                }
+            }
+
             result = node_seq.backwards_apply(&result);
+
+            let prior = sibling_ops.get(&parents_key).unwrap_or(&empty_seq).clone();
+            sibling_ops.insert(parents_key, node_seq.backwards_apply(&prior));
 
             for &child_id in &node.children {
                 if !reachable.contains(&child_id) {
@@ -2475,6 +2496,56 @@ mod tests {
         let final_oplist = graph.merge_graph();
         let res = oplist_to_string(&final_oplist);
         assert_eq!(res, "ABDEC");
+    }
+
+    /// Concurrent delete + insert should keep both ops (delete shouldn't delete the insert).
+    #[test]
+    fn delete_with_concurrent_insert() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABC")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Ins(1, "X")]), vec![0]); // Insert X
+        graph.add_node(3, empty_oplist(), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "AXC");
+    }
+
+    /// Concurrent deletes at the same position should be idempotent.
+    #[test]
+    fn delete_same_position_concurrent() {
+        let mut graph = Graph::new(0, getOpList([TestOp::Ins(0, "ABCD")]));
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(2, getOpList([TestOp::Del(2, -1)]), vec![0]); // Delete B
+        graph.add_node(3, empty_oplist(), vec![1, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "ACD");
+    }
+
+    #[test]
+    fn transform_delete_against_insert_shifts_past_insert() {
+        let insert = getOpList([TestOp::Ins(1, "X")]).from_oplist_to_sequential_list();
+        let delete = getOpList([TestOp::Del(2, -1)]).from_oplist_to_sequential_list();
+        let transformed = OpList::transform_ops_impl(&insert.ops, &delete, true);
+        assert_eq!(
+            transformed,
+            OpList {
+                ops: vec![Op::Delete { ins: 2, len: -1 }],
+                test_op: None
+            }
+        );
+    }
+
+    #[test]
+    fn transformed_delete_then_apply_keeps_insert() {
+        let root = getOpList([TestOp::Ins(0, "ABC")]).from_oplist_to_sequential_list();
+        let insert = getOpList([TestOp::Ins(1, "X")]).from_oplist_to_sequential_list();
+        let after_insert = insert.backwards_apply(&root);
+
+        let delete = getOpList([TestOp::Del(2, -1)]).from_oplist_to_sequential_list();
+        let transformed = OpList::transform_ops_impl(&insert.ops, &delete, true);
+        let after_both = transformed.backwards_apply(&after_insert);
+        assert_eq!(oplist_to_string(&after_both), "AXC");
     }
 
     fn empty_oplist() -> OpList {
