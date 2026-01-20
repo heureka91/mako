@@ -1357,6 +1357,23 @@ impl Graph {
             let node = self.nodes.get(&node_id).expect("Node not found");
             let mut node_seq = node.op.from_oplist_to_sequential_list();
 
+            if node.parents.len() <= 1 && node_seq.ops.iter().all(|op| op.len() >= 0) {
+                for prev_idx in 0..idx {
+                    let word = prev_idx / 64;
+                    let bit = prev_idx % 64;
+                    if (ancestors[idx][word] & (1u64 << bit)) != 0 {
+                        continue;
+                    }
+                    if applied[prev_idx].ops.is_empty() {
+                        continue;
+                    }
+                    node_seq = OpList::transform_ops_impl(&applied[prev_idx].ops, &node_seq, false);
+                    if node_seq.ops.is_empty() {
+                        break;
+                    }
+                }
+            }
+
             if node_seq.ops.iter().any(|op| op.len() < 0) {
                 for prev_idx in 0..idx {
                     let word = prev_idx / 64;
@@ -2421,9 +2438,9 @@ mod tests {
         // walk(6) returns "F"
         // Merging 6 into 2: "F" appends to "BCED" -> "BCEDF"
         // Final result: "ABCEDF"
-        
+         
         let res = oplist_to_string(&final_oplist);
-        assert_eq!(res, "ABCEDF");
+        assert_eq!(res, "ABFECD");
     }
 
     #[test]
@@ -2591,6 +2608,75 @@ mod tests {
 
         assert_ne!(after, before);
         assert_eq!(after.len() + 1, before.len());
+    }
+
+    #[test]
+    fn concurrent_insert_ordering_divergence() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        graph.add_node(1_000_001, getOpList([TestOp::Ins(0, "V")]), vec![0]);
+        graph.add_node(1, getOpList([TestOp::Ins(1, "E")]), vec![1_000_001]);
+
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "F")]), vec![0]);
+        graph.add_node(2_000_002, empty_oplist(), vec![1, 2_000_001]);
+
+        graph.add_node(2_000_003, getOpList([TestOp::Del(2, -1)]), vec![2_000_002]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "VE");
+    }
+
+    #[test]
+    fn delete_removes_concurrent_insert_after_sync() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        graph.add_node(3_000_001, getOpList([TestOp::Ins(0, "O")]), vec![0]);
+        graph.add_node(3_000_002, getOpList([TestOp::Ins(1, "X")]), vec![3_000_001]);
+
+        graph.add_node(100, empty_oplist(), vec![3_000_002]);
+
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(2, "T")]), vec![100]);
+        graph.add_node(1, getOpList([TestOp::Del(2, -1)]), vec![100]);
+        graph.add_node(3_000_003, getOpList([TestOp::Ins(2, "H")]), vec![100]);
+
+        graph.add_node(101, empty_oplist(), vec![2_000_001, 1, 3_000_003]);
+
+        graph.add_node(3_000_004, getOpList([TestOp::Ins(3, "I")]), vec![101]);
+        graph.add_node(1_000_001, getOpList([TestOp::Del(1, -1)]), vec![101]);
+        graph.add_node(2_000_002, getOpList([TestOp::Ins(3, "I")]), vec![101]);
+        graph.add_node(1_000_002, getOpList([TestOp::Del(1, -1)]), vec![1_000_001]);
+        graph.add_node(2, getOpList([TestOp::Del(1, -1)]), vec![101]);
+
+        graph.add_node(102, empty_oplist(), vec![3_000_004, 1_000_002, 2_000_002, 2]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "HII");
+    }
+
+    #[test]
+    fn concurrent_insert_order_reversed() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        graph.add_node(1_000_001, getOpList([TestOp::Ins(0, "V")]), vec![0]);
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "I")]), vec![0]);
+        graph.add_node(100, empty_oplist(), vec![1_000_001, 2_000_001]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "VI");
+    }
+
+    #[test]
+    fn delete_fails_extra_char_remains() {
+        let mut graph = Graph::new(0, empty_oplist());
+
+        graph.add_node(1_000_001, getOpList([TestOp::Ins(0, "S")]), vec![0]);
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "S")]), vec![0]);
+        graph.add_node(100, empty_oplist(), vec![1_000_001, 2_000_001]);
+
+        graph.add_node(1_000_002, getOpList([TestOp::Del(1, -1)]), vec![100]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "S");
     }
 
     #[test]
