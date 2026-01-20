@@ -1367,6 +1367,17 @@ impl Graph {
                     if applied[prev_idx].ops.is_empty() {
                         continue;
                     }
+                    // Insert-only ops should only be shifted by operations that are in the same
+                    // insertion context (same parent set). Shifting against unrelated branches
+                    // breaks hierarchical insertion ordering (see fuzz repro).
+                    let prev_has_delete = applied[prev_idx].ops.iter().any(|op| op.len() < 0);
+                    if !prev_has_delete && node.parents.len() == 1 {
+                        let prev_id = order[prev_idx];
+                        let prev_node = self.nodes.get(&prev_id).expect("Node not found");
+                        if prev_node.parents.len() != 1 || prev_node.parents[0] != node.parents[0] {
+                            continue;
+                        }
+                    }
                     node_seq = OpList::transform_ops_impl(&applied[prev_idx].ops, &node_seq, false);
                     if node_seq.ops.is_empty() {
                         break;
@@ -2440,7 +2451,7 @@ mod tests {
         // Final result: "ABCEDF"
          
         let res = oplist_to_string(&final_oplist);
-        assert_eq!(res, "ABFECD");
+        assert_eq!(res, "ABCEDF");
     }
 
     #[test]
@@ -2614,16 +2625,23 @@ mod tests {
     fn concurrent_insert_ordering_divergence() {
         let mut graph = Graph::new(0, empty_oplist());
 
-        graph.add_node(1_000_001, getOpList([TestOp::Ins(0, "V")]), vec![0]);
-        graph.add_node(1, getOpList([TestOp::Ins(1, "E")]), vec![1_000_001]);
+        // Based on fuzz seed 0xe91cd15e00000000 (see `mako_fuzz_worktree/fuzz/src/bin/bug1_insert_order.rs`).
+        // Site 1 inserts V, then site 0 inserts E after V, and site 2 inserts F before V.
+        // Site 2 then deletes at pos 1 after syncing E, which should delete V, yielding "FE" (Fugue-Simple).
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "V")]), vec![0]);
+        graph.add_node(1_000_001, getOpList([TestOp::Ins(1, "E")]), vec![2_000_001]);
+        graph.add_node(3_000_001, getOpList([TestOp::Ins(0, "F")]), vec![2_000_001]);
 
-        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "F")]), vec![0]);
-        graph.add_node(2_000_002, empty_oplist(), vec![1, 2_000_001]);
+        graph.add_node(
+            3_000_002,
+            getOpList([TestOp::Del(2, -1)]),
+            vec![1_000_001, 3_000_001],
+        );
 
-        graph.add_node(2_000_003, getOpList([TestOp::Del(2, -1)]), vec![2_000_002]);
+        graph.add_node(100, empty_oplist(), vec![3_000_002]);
 
         let result = oplist_to_string(&graph.merge_graph());
-        assert_eq!(result, "VE");
+        assert_eq!(result, "FE");
     }
 
     #[test]
@@ -2663,6 +2681,35 @@ mod tests {
 
         let result = oplist_to_string(&graph.merge_graph());
         assert_eq!(result, "VI");
+    }
+
+    #[test]
+    fn hierarchical_insert_ordering_fugue_match() {
+        // Scenario (from fuzz seed 0xe91cd15e00000020):
+        // - Site 0 inserts 'U' at pos 0, then 'R' at pos 1 (R is "child" of U)
+        // - Site 1 inserts 'O' at pos 0 (concurrent with U)
+        // - Site 2 inserts 'I' at pos 0, then 'H' at pos 1 (concurrent with U, O)
+        //
+        // Expected (Fugue): 'UROIH' - R stays immediately after U
+        // Historical (Mako): 'UOIHR' - R shifts to the end
+        let mut graph = Graph::new(0, empty_oplist());
+
+        // Site 0: U at pos 0
+        graph.add_node(1_000_001, getOpList([TestOp::Ins(0, "U")]), vec![0]);
+        // Site 1: O at pos 0 (concurrent with U)
+        graph.add_node(2_000_001, getOpList([TestOp::Ins(0, "O")]), vec![0]);
+        // Site 2: I at pos 0 (concurrent with U, O)
+        graph.add_node(3_000_001, getOpList([TestOp::Ins(0, "I")]), vec![0]);
+        // Site 2: H at pos 1 (child of I)
+        graph.add_node(3_000_002, getOpList([TestOp::Ins(1, "H")]), vec![3_000_001]);
+        // Site 0: R at pos 1 (child of U)
+        graph.add_node(1_000_002, getOpList([TestOp::Ins(1, "R")]), vec![1_000_001]);
+
+        // Merge all (simulate SyncAll)
+        graph.add_node(100, empty_oplist(), vec![1_000_002, 2_000_001, 3_000_002]);
+
+        let result = oplist_to_string(&graph.merge_graph());
+        assert_eq!(result, "UROIH");
     }
 
     #[test]
