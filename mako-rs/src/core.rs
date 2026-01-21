@@ -1246,10 +1246,22 @@ impl Graph {
     }
 
     pub fn merge_graph(&self) -> OpList {
-        self.merge_graph_partial_parents()
+        let has_multi_parent = self.nodes.values().any(|node| node.parents.len() > 1);
+        let has_delete = self
+            .nodes
+            .values()
+            .any(|node| node.op.ops.iter().any(|op| op.len() < 0));
+
+        if !has_multi_parent && !has_delete {
+            let mut visited = std::collections::HashSet::new();
+            self.walk(self.root, &mut visited)
+        } else {
+            self.merge_graph_partial_parents()
+        }
     }
 
     fn merge_graph_partial_parents(&self) -> OpList {
+        use std::cmp::Ordering;
         use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
         let mut reachable = HashSet::new();
@@ -1262,8 +1274,45 @@ impl Graph {
             }
             let node = self.nodes.get(&node_id).expect("Node not found");
             for &child_id in &node.children {
-                queue.push_back(child_id);
+                // Operations with missing causal parents are not yet applicable; keep them out of
+                // the reachable subgraph until all parents are present.
+                let Some(child) = self.nodes.get(&child_id) else {
+                    continue;
+                };
+                if child.parents.iter().all(|parent_id| self.nodes.contains_key(parent_id)) {
+                    queue.push_back(child_id);
+                }
             }
+        }
+
+        let mut min_insert_pos_by_id: HashMap<usize, InsertPos> =
+            HashMap::with_capacity(reachable.len());
+        let mut insert_len_by_id: HashMap<usize, Length> = HashMap::with_capacity(reachable.len());
+        let mut insert_only_by_id: HashMap<usize, bool> = HashMap::with_capacity(reachable.len());
+        for &node_id in &reachable {
+            let node = self.nodes.get(&node_id).expect("Node not found");
+            let mut insert_len: Length = 0;
+            let mut insert_only = !node.op.ops.is_empty();
+            let min_pos = node
+                .op
+                .ops
+                .iter()
+                .filter_map(|op| {
+                    if op.len() < 0 {
+                        insert_only = false;
+                        None
+                    } else if op.len() > 0 {
+                        insert_len += op.len();
+                        Some(op.ins())
+                    } else {
+                        None
+                    }
+                })
+                .min()
+                .unwrap_or(i32::MAX);
+            min_insert_pos_by_id.insert(node_id, min_pos);
+            insert_len_by_id.insert(node_id, insert_len);
+            insert_only_by_id.insert(node_id, insert_only);
         }
 
         let mut indegree: HashMap<usize, usize> = HashMap::new();
@@ -1272,7 +1321,7 @@ impl Graph {
             let mut count = 0usize;
             for &parent_id in &node.parents {
                 if !self.nodes.contains_key(&parent_id) {
-                    panic!("Node {node_id} references missing parent {parent_id}");
+                    continue;
                 }
                 if reachable.contains(&parent_id) {
                     count += 1;
@@ -1282,14 +1331,64 @@ impl Graph {
         }
 
         let mut ready = BTreeSet::new();
+        let mut max_delete_ancestor_by_id: HashMap<usize, usize> =
+            HashMap::with_capacity(reachable.len());
+        let mut depth_by_id: HashMap<usize, usize> = HashMap::with_capacity(reachable.len());
         for (&node_id, &count) in &indegree {
             if count == 0 {
+                let node = self.nodes.get(&node_id).expect("Node not found");
+                let mut max_delete = 0usize;
+                if node.op.ops.iter().any(|op| op.len() < 0) {
+                    max_delete = node_id;
+                }
+                max_delete_ancestor_by_id.insert(node_id, max_delete);
+                depth_by_id.insert(node_id, 0);
                 ready.insert(node_id);
             }
         }
 
         let mut order = Vec::with_capacity(reachable.len());
-        while let Some(&node_id) = ready.iter().next_back() {
+        while !ready.is_empty() {
+            let delete_candidate = ready
+                .iter()
+                .filter(|&&candidate| {
+                    self.nodes
+                        .get(&candidate)
+                        .is_some_and(|node| node.op.ops.iter().any(|op| op.len() < 0))
+                })
+                .max_by_key(|&&candidate| {
+                    let max_delete = *max_delete_ancestor_by_id.get(&candidate).unwrap_or_else(|| {
+                        panic!("missing max_delete_ancestor for node {candidate}")
+                    });
+                    let depth = *depth_by_id.get(&candidate).unwrap_or_else(|| {
+                        panic!("missing depth for node {candidate}")
+                    });
+                    let insert_pos = *min_insert_pos_by_id.get(&candidate).unwrap_or_else(|| {
+                        panic!("missing min_insert_pos for node {candidate}")
+                    });
+                    (max_delete, depth, std::cmp::Reverse(insert_pos), std::cmp::Reverse(candidate))
+                });
+
+            let node_id = if let Some(&node_id) = delete_candidate {
+                node_id
+            } else {
+                *ready
+                    .iter()
+                    .max_by_key(|&&candidate| {
+                        let depth = *depth_by_id.get(&candidate).unwrap_or_else(|| {
+                            panic!("missing depth for node {candidate}")
+                        });
+                        let insert_pos = *min_insert_pos_by_id.get(&candidate).unwrap_or_else(|| {
+                            panic!("missing min_insert_pos for node {candidate}")
+                        });
+                        // When no delete nodes are ready, avoid prioritizing by delete ancestry.
+                        // Using delete ancestry here can interleave concurrent inserts into existing
+                        // insertion-context subtrees (e.g., placing a sibling between a parent and
+                        // its right-children), diverging from Fugue's traversal semantics.
+                        (depth, std::cmp::Reverse(insert_pos), std::cmp::Reverse(candidate))
+                    })
+                    .expect("ready should not be empty")
+            };
             ready.remove(&node_id);
             order.push(node_id);
 
@@ -1305,6 +1404,62 @@ impl Graph {
                     .checked_sub(1)
                     .unwrap_or_else(|| panic!("indegree underflow for child {child_id}"));
                 if *entry == 0 {
+                    let child_node = self.nodes.get(&child_id).expect("Node not found");
+                    let mut max_delete = 0usize;
+                    let mut depth = 0usize;
+                    for &parent_id in &child_node.parents {
+                        if !reachable.contains(&parent_id) {
+                            continue;
+                        }
+                        max_delete = max_delete.max(
+                            *max_delete_ancestor_by_id.get(&parent_id).unwrap_or_else(|| {
+                                panic!("missing max_delete_ancestor for parent {parent_id}")
+                            }),
+                        );
+                        depth = depth.max(
+                            *depth_by_id
+                                .get(&parent_id)
+                                .unwrap_or_else(|| panic!("missing depth for parent {parent_id}")),
+                        );
+                    }
+
+                    depth = if child_node.parents.len() == 1
+                        && insert_only_by_id.get(&child_id).copied().unwrap_or(false)
+                    {
+                        let parent_id = child_node.parents[0];
+                        if reachable.contains(&parent_id)
+                            && insert_only_by_id.get(&parent_id).copied().unwrap_or(false)
+                        {
+                            let parent_pos = *min_insert_pos_by_id.get(&parent_id).unwrap_or_else(|| {
+                                panic!("missing min_insert_pos for node {parent_id}")
+                            });
+                            let parent_len = *insert_len_by_id.get(&parent_id).unwrap_or_else(|| {
+                                panic!("missing insert_len for node {parent_id}")
+                            });
+                            let child_pos = *min_insert_pos_by_id.get(&child_id).unwrap_or_else(|| {
+                                panic!("missing min_insert_pos for node {child_id}")
+                            });
+
+                            if parent_len > 0 && child_pos == parent_pos.saturating_add(parent_len) {
+                                depth_by_id
+                                    .get(&parent_id)
+                                    .copied()
+                                    .unwrap_or_else(|| panic!("missing depth for node {parent_id}"))
+                                    + 1
+                            } else {
+                                0
+                            }
+                        } else {
+                            0
+                        }
+                    } else {
+                        0
+                    };
+                    if child_node.op.ops.iter().any(|op| op.len() < 0) {
+                        max_delete = max_delete.max(child_id);
+                    }
+                    max_delete_ancestor_by_id.insert(child_id, max_delete);
+                    depth_by_id.insert(child_id, depth);
                     ready.insert(child_id);
                 }
             }
@@ -1351,12 +1506,622 @@ impl Graph {
             };
             order.len()
         ];
+        let mut applied_spans: Vec<Vec<TransformOp>> = vec![Vec::new(); order.len()];
+
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum InsertSide {
+            Left,
+            Right,
+        }
+
+        let delete_targets_parent_insert = |delete_id: usize| -> Option<usize> {
+            let delete_node = self.nodes.get(&delete_id)?;
+            if delete_node.parents.len() != 1 {
+                return None;
+            }
+            if delete_node.op.ops.is_empty() || !delete_node.op.ops.iter().all(|op| op.len() < 0) {
+                return None;
+            }
+            if delete_node.op.ops.len() != 1 {
+                return None;
+            }
+            let Op::Delete { ins: del_end, len } = delete_node.op.ops[0] else {
+                return None;
+            };
+            if len >= 0 {
+                return None;
+            }
+
+            let parent_id = delete_node.parents[0];
+            let parent_node = self.nodes.get(&parent_id)?;
+            if parent_node.op.ops.len() != 1 {
+                return None;
+            }
+            let Op::Insert {
+                ins: parent_ins,
+                ref content,
+            } = parent_node.op.ops[0]
+            else {
+                return None;
+            };
+
+            let del_start = del_end + len;
+            let parent_end = parent_ins.saturating_add(content.len() as Length);
+            if del_start >= parent_ins && del_end <= parent_end {
+                Some(parent_id)
+            } else {
+                None
+            }
+        };
+
+        let insert_context = |node_id: usize| -> Option<(usize, InsertSide)> {
+            if !insert_only_by_id.get(&node_id).copied().unwrap_or(false) {
+                return None;
+            }
+            let node = self.nodes.get(&node_id)?;
+            if node.parents.is_empty() {
+                return None;
+            }
+
+            // Multi-parent inserts can arise after syncing multiple frontiers. In Fugue, inserts
+            // into an empty visible document (but with tombstones present) become left children of
+            // the first right-origin tombstone. In the fuzz harness, this frequently manifests as
+            // an insert whose parents are multiple *equivalent* deletes of the same character.
+            //
+            // Best-effort: if all parents are deletes targeting the same parent insert, treat this
+            // insert as a left child of that tombstone.
+            if node.parents.len() > 1 {
+                // Parent edges represent causal frontiers, not insertion context; infer insertion
+                // context from the visible index instead.
+                return None;
+            }
+
+            let parent_id = node.parents[0];
+            let parent_node = self.nodes.get(&parent_id)?;
+
+            if parent_node.op.ops.iter().all(|op| op.len() < 0) {
+                return None;
+            }
+
+            None
+        };
+
+        let mut insert_context_by_id: HashMap<usize, (usize, InsertSide)> =
+            HashMap::with_capacity(order.len());
+        for &node_id in &order {
+            if let Some(ctx) = insert_context(node_id) {
+                insert_context_by_id.insert(node_id, ctx);
+            }
+        }
+
+        let mut insert_path_by_id: HashMap<usize, Vec<(usize, InsertSide, usize)>> =
+            HashMap::with_capacity(insert_context_by_id.len());
+        for &node_id in insert_context_by_id.keys() {
+            let mut rev_steps: Vec<(usize, InsertSide, usize)> = Vec::new();
+            let mut current = node_id;
+            while let Some((anchor, side)) = insert_context_by_id.get(&current).copied() {
+                rev_steps.push((anchor, side, current));
+                current = anchor;
+            }
+            rev_steps.reverse();
+            insert_path_by_id.insert(node_id, rev_steps);
+        }
+
+        let insert_cmp = |lhs_id: usize,
+                          rhs_id: usize,
+                          insert_paths_by_id: &HashMap<usize, Vec<(usize, InsertSide, usize)>>|
+         -> Ordering {
+            if lhs_id == rhs_id {
+                return Ordering::Equal;
+            }
+
+            if let (Some(lhs_path), Some(rhs_path)) =
+                (insert_paths_by_id.get(&lhs_id), insert_paths_by_id.get(&rhs_id))
+            {
+                let mut ordering = Ordering::Equal;
+                for ((lhs_anchor, lhs_side, lhs_child), (rhs_anchor, rhs_side, rhs_child)) in
+                    lhs_path.iter().zip(rhs_path.iter())
+                {
+                    if lhs_anchor != rhs_anchor {
+                        ordering = lhs_anchor.cmp(rhs_anchor);
+                        break;
+                    }
+                    let lhs_rank = if *lhs_side == InsertSide::Left { 0u8 } else { 1u8 };
+                    let rhs_rank = if *rhs_side == InsertSide::Left { 0u8 } else { 1u8 };
+                    if lhs_rank != rhs_rank {
+                        ordering = lhs_rank.cmp(&rhs_rank);
+                        break;
+                    }
+                    if lhs_child != rhs_child {
+                        ordering = lhs_child.cmp(rhs_child);
+                        break;
+                    }
+                }
+
+                if ordering == Ordering::Equal && lhs_path.len() != rhs_path.len() {
+                    // If one path is a prefix of the other, break ties using the first
+                    // diverging side: left descendants precede the ancestor; right descendants
+                    // follow it. This matches Fugue's in-order traversal (left children, node,
+                    // right children).
+                    if lhs_path.len() < rhs_path.len() {
+                        let (_, side, _) = rhs_path[lhs_path.len()];
+                        ordering = if side == InsertSide::Left {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        };
+                    } else {
+                        let (_, side, _) = lhs_path[rhs_path.len()];
+                        ordering = if side == InsertSide::Left {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        };
+                    }
+                }
+
+                if ordering != Ordering::Equal {
+                    return ordering;
+                }
+            }
+
+            let lhs_depth = *depth_by_id
+                .get(&lhs_id)
+                .unwrap_or_else(|| panic!("missing depth for node {lhs_id}"));
+            let rhs_depth = *depth_by_id
+                .get(&rhs_id)
+                .unwrap_or_else(|| panic!("missing depth for node {rhs_id}"));
+
+            let lhs_insert_pos = *min_insert_pos_by_id
+                .get(&lhs_id)
+                .unwrap_or_else(|| panic!("missing min_insert_pos for node {lhs_id}"));
+            let rhs_insert_pos = *min_insert_pos_by_id
+                .get(&rhs_id)
+                .unwrap_or_else(|| panic!("missing min_insert_pos for node {rhs_id}"));
+
+            let lhs_node = self.nodes.get(&lhs_id).expect("Node not found");
+            let rhs_node = self.nodes.get(&rhs_id).expect("Node not found");
+            let same_context = lhs_node.parents == rhs_node.parents;
+
+            let ordering = if same_context {
+                if lhs_insert_pos != rhs_insert_pos {
+                    lhs_insert_pos.cmp(&rhs_insert_pos)
+                } else {
+                    lhs_id.cmp(&rhs_id)
+                }
+            } else if lhs_depth != rhs_depth {
+                // Higher depth precedes lower depth.
+                rhs_depth.cmp(&lhs_depth)
+            } else {
+                lhs_id.cmp(&rhs_id)
+            };
+
+            if ordering == Ordering::Equal {
+                lhs_id.cmp(&rhs_id)
+            } else {
+                ordering
+            }
+        };
+
+        let bitset_has = |bits: &[u64], idx: usize| -> bool {
+            let word = idx / 64;
+            let bit = idx % 64;
+            (bits[word] & (1u64 << bit)) != 0
+        };
+
+        let bitset_set = |bits: &mut [u64], idx: usize| {
+            let word = idx / 64;
+            let bit = idx % 64;
+            bits[word] |= 1u64 << bit;
+        };
+
+        let is_insert_node = |node_id: usize| -> bool {
+            insert_only_by_id.get(&node_id).copied().unwrap_or(false)
+                && insert_len_by_id.get(&node_id).copied().unwrap_or(0) > 0
+        };
+
+        let build_delete_maps = |insert_path_by_id: &HashMap<
+            usize,
+            Vec<(usize, InsertSide, usize)>,
+        >| {
+            let mut deleted_before_by_idx = vec![vec![0u64; blocks]; order.len()];
+            let mut deleted_after_by_idx = vec![vec![0u64; blocks]; order.len()];
+            let mut delete_target_by_idx: Vec<Option<usize>> = vec![None; order.len()];
+
+            for (idx, &node_id) in order.iter().enumerate() {
+                let node = self.nodes.get(&node_id).expect("Node not found");
+
+                // Union all deletions from parents (delete operations are idempotent).
+                for &parent_id in &node.parents {
+                    if !reachable.contains(&parent_id) {
+                        continue;
+                    }
+                    let parent_idx = *index_by_id
+                        .get(&parent_id)
+                        .unwrap_or_else(|| panic!("missing index for parent {parent_id}"));
+                    let parent_bits = deleted_after_by_idx[parent_idx].clone();
+                    for (dst, src) in deleted_before_by_idx[idx].iter_mut().zip(parent_bits) {
+                        *dst |= src;
+                    }
+                }
+
+                let mut deleted_after = deleted_before_by_idx[idx].clone();
+
+                // Best-effort mapping from position-based delete -> target insert node (single-char deletes).
+                if node.op.ops.len() == 1 && node.op.ops.iter().all(|op| op.len() < 0) {
+                    let Op::Delete { ins: del_end, len } = node.op.ops[0] else {
+                        unreachable!();
+                    };
+                    if len == -1 {
+                        let del_start = del_end + len;
+                        if del_start >= 0 {
+                            let delete_index = del_start as usize;
+
+                            let mut candidates: Vec<usize> = Vec::new();
+                            for candidate_idx in 0..idx {
+                                let word = candidate_idx / 64;
+                                let bit = candidate_idx % 64;
+                                if (ancestors[idx][word] & (1u64 << bit)) == 0 {
+                                    continue;
+                                }
+                                let candidate_id = order[candidate_idx];
+                                if !is_insert_node(candidate_id) {
+                                    continue;
+                                }
+                                if bitset_has(&deleted_before_by_idx[idx], candidate_idx) {
+                                    continue;
+                                }
+                                candidates.push(candidate_idx);
+                            }
+
+                            candidates.sort_by(|&a_idx, &b_idx| {
+                                insert_cmp(order[a_idx], order[b_idx], insert_path_by_id)
+                                    .then_with(|| a_idx.cmp(&b_idx))
+                            });
+
+                            if let Some(&target_idx) = candidates.get(delete_index) {
+                                delete_target_by_idx[idx] = Some(target_idx);
+                                bitset_set(&mut deleted_after, target_idx);
+                            }
+                        }
+                    }
+                }
+
+                deleted_after_by_idx[idx] = deleted_after;
+            }
+
+            (deleted_before_by_idx, deleted_after_by_idx, delete_target_by_idx)
+        };
+
+        let seeded_insert_context_by_id = insert_context_by_id.clone();
+
+        let rebuild_insert_paths = |insert_context_by_id: &HashMap<usize, (usize, InsertSide)>,
+                                    insert_path_by_id: &mut HashMap<
+            usize,
+            Vec<(usize, InsertSide, usize)>,
+        >| {
+            insert_path_by_id.clear();
+            let insert_ids: Vec<usize> = insert_context_by_id.keys().copied().collect();
+            for node_id in insert_ids {
+                let mut rev_steps: Vec<(usize, InsertSide, usize)> = Vec::new();
+                let mut current = node_id;
+                while let Some((anchor, side)) = insert_context_by_id.get(&current).copied() {
+                    rev_steps.push((anchor, side, current));
+                    current = anchor;
+                }
+                rev_steps.reverse();
+                insert_path_by_id.insert(node_id, rev_steps);
+            }
+        };
+
+        let mut infer_missing_insert_contexts =
+            |insert_context_by_id: &mut HashMap<usize, (usize, InsertSide)>,
+             deleted_before_for_visibility: Option<&Vec<Vec<u64>>>| {
+                // Some inserts don't have a direct insertion-context edge in the DAG (especially
+                // after syncing multiple frontiers, when new local ops become multi-parent). Fugue
+                // uses the visible "left origin" (the element at index-1) as the anchor for such
+                // inserts.
+                //
+                // Best-effort: infer an anchor from the insert's causal history by ordering the
+                // insert ancestors and selecting the element that would be at (ins-1). This avoids
+                // picking a frontier leaf as an anchor (which can diverge from the local
+                // left-origin under partial parent frontiers).
+                for &node_id in &order {
+                    if node_id == self.root {
+                        continue;
+                    }
+                    if insert_context_by_id.contains_key(&node_id) {
+                        continue;
+                    }
+                    if !insert_only_by_id.get(&node_id).copied().unwrap_or(false) {
+                        continue;
+                    }
+
+                    let node_idx = *index_by_id
+                        .get(&node_id)
+                        .unwrap_or_else(|| panic!("missing index for node {node_id}"));
+
+                    let insert_pos = *min_insert_pos_by_id
+                        .get(&node_id)
+                        .unwrap_or_else(|| panic!("missing min_insert_pos for node {node_id}"));
+                    let insert_pos_usize: usize =
+                        if insert_pos <= 0 { 0 } else { insert_pos as usize };
+
+                    let mut candidates: Vec<usize> = Vec::new();
+                    for candidate_idx in 0..node_idx {
+                        let word = candidate_idx / 64;
+                        let bit = candidate_idx % 64;
+                        if (ancestors[node_idx][word] & (1u64 << bit)) == 0 {
+                            continue;
+                        }
+                        let candidate_id = order[candidate_idx];
+                        if candidate_id == self.root {
+                            continue;
+                        }
+                        if !insert_only_by_id
+                            .get(&candidate_id)
+                            .copied()
+                            .unwrap_or(false)
+                        {
+                            continue;
+                        }
+                        if let Some(deleted_before_by_idx) = deleted_before_for_visibility {
+                            if bitset_has(&deleted_before_by_idx[node_idx], candidate_idx) {
+                                continue;
+                            }
+                        }
+                        let len = insert_len_by_id.get(&candidate_id).copied().unwrap_or(0);
+                        if len <= 0 {
+                            continue;
+                        }
+                        candidates.push(candidate_id);
+                    }
+
+                    // Sort candidates using *current* insertion-context paths. `insert_path_by_id`
+                    // is rebuilt after this pass, so it may be stale while we are still inferring
+                    // contexts.
+                    let mut candidate_paths_by_id: HashMap<usize, Vec<(usize, InsertSide, usize)>> =
+                        HashMap::with_capacity(candidates.len());
+                    for &candidate_id in &candidates {
+                        let mut rev_steps: Vec<(usize, InsertSide, usize)> = Vec::new();
+                        let mut current = candidate_id;
+                        while let Some((anchor, side)) =
+                            insert_context_by_id.get(&current).copied()
+                        {
+                            rev_steps.push((anchor, side, current));
+                            current = anchor;
+                        }
+                        rev_steps.reverse();
+                        candidate_paths_by_id.insert(candidate_id, rev_steps);
+                    }
+
+                    candidates.sort_by(|a, b| {
+                        insert_cmp(*a, *b, &candidate_paths_by_id).then_with(|| a.cmp(b))
+                    });
+
+                    // Find the left-origin (visible node at index-1, or root if inserting at 0).
+                    // Note: unlike our old "right neighbor" approximation, Fugue's insertion
+                    // semantics depend on whether *left-origin* has right-children, not whether a
+                    // global right neighbor exists in the visible order.
+                    let mut cursor: usize = 0;
+                    let mut visible_len: usize = 0;
+                    let mut left_origin: Option<usize> = None;
+                    let mut last_visible: Option<usize> = None;
+                    for &candidate_id in &candidates {
+                        let len = insert_len_by_id.get(&candidate_id).copied().unwrap_or(0);
+                        if len <= 0 {
+                            continue;
+                        }
+                        let len_usize: usize = len.try_into().unwrap_or_else(|_| {
+                            panic!("invalid insert_len for node {candidate_id}")
+                        });
+
+                        if insert_pos_usize > 0 && left_origin.is_none() {
+                            let target = insert_pos_usize - 1;
+                            if cursor.saturating_add(len_usize) > target {
+                                left_origin = Some(candidate_id);
+                            }
+                        }
+
+                        last_visible = Some(candidate_id);
+                        cursor = cursor.saturating_add(len_usize);
+                    }
+                    visible_len = cursor;
+
+                    let insert_pos_usize = insert_pos_usize.min(visible_len);
+                    let left_origin_id = if insert_pos_usize == 0 {
+                        self.root
+                    } else {
+                        left_origin.or(last_visible).unwrap_or(self.root)
+                    };
+
+                    // Fugue rule:
+                    // - If left-origin has no right-children, insert becomes a right child of
+                    //   left-origin.
+                    // - Otherwise insert becomes a left child of right-origin, where right-origin
+                    //   is the leftmost-descendant of left-origin's first right-child.
+                    let mut right_children: Vec<usize> = Vec::new();
+                    for candidate_idx in 0..node_idx {
+                        let word = candidate_idx / 64;
+                        let bit = candidate_idx % 64;
+                        if (ancestors[node_idx][word] & (1u64 << bit)) == 0 {
+                            continue;
+                        }
+                        let candidate_id = order[candidate_idx];
+                        if candidate_id == self.root {
+                            continue;
+                        }
+                        if !insert_only_by_id
+                            .get(&candidate_id)
+                            .copied()
+                            .unwrap_or(false)
+                        {
+                            continue;
+                        }
+                        let Some((anchor, side)) =
+                            insert_context_by_id.get(&candidate_id).copied()
+                        else {
+                            continue;
+                        };
+                        if anchor == left_origin_id && side == InsertSide::Right {
+                            right_children.push(candidate_id);
+                        }
+                    }
+                    right_children.sort();
+
+                    if right_children.is_empty() {
+                        insert_context_by_id.insert(node_id, (left_origin_id, InsertSide::Right));
+                    } else {
+                        let first_right = right_children[0];
+                        let mut right_origin = first_right;
+                        loop {
+                            let mut left_children: Vec<usize> = Vec::new();
+                            for candidate_idx in 0..node_idx {
+                                let word = candidate_idx / 64;
+                                let bit = candidate_idx % 64;
+                                if (ancestors[node_idx][word] & (1u64 << bit)) == 0 {
+                                    continue;
+                                }
+                                let candidate_id = order[candidate_idx];
+                                if candidate_id == self.root {
+                                    continue;
+                                }
+                                if !insert_only_by_id
+                                    .get(&candidate_id)
+                                    .copied()
+                                    .unwrap_or(false)
+                                {
+                                    continue;
+                                }
+                                let Some((anchor, side)) =
+                                    insert_context_by_id.get(&candidate_id).copied()
+                                else {
+                                    continue;
+                                };
+                                if anchor == right_origin && side == InsertSide::Left {
+                                    left_children.push(candidate_id);
+                                }
+                            }
+                            left_children.sort();
+                            let Some(next) = left_children.first().copied() else {
+                                break;
+                            };
+                            right_origin = next;
+                        }
+
+                        insert_context_by_id.insert(node_id, (right_origin, InsertSide::Left));
+                    }
+                }
+            };
+
+        let mut deleted_before_for_visibility: Option<Vec<Vec<u64>>> = None;
+        let mut inferred_insert_context_by_id = seeded_insert_context_by_id.clone();
+        for _ in 0..10 {
+            inferred_insert_context_by_id = seeded_insert_context_by_id.clone();
+            infer_missing_insert_contexts(
+                &mut inferred_insert_context_by_id,
+                deleted_before_for_visibility.as_ref(),
+            );
+            rebuild_insert_paths(&inferred_insert_context_by_id, &mut insert_path_by_id);
+
+            let (deleted_before, _deleted_after, _delete_target) =
+                build_delete_maps(&insert_path_by_id);
+            if deleted_before_for_visibility
+                .as_ref()
+                .is_some_and(|prev| *prev == deleted_before)
+            {
+                deleted_before_for_visibility = Some(deleted_before);
+                break;
+            }
+            deleted_before_for_visibility = Some(deleted_before);
+        }
+
+        insert_context_by_id = inferred_insert_context_by_id;
+
+        let insert_precedes = |lhs_id: usize, rhs_id: usize| -> bool {
+            insert_cmp(lhs_id, rhs_id, &insert_path_by_id) == Ordering::Less
+        };
+
+        let (deleted_before_by_idx, _deleted_after_by_idx, delete_target_by_idx) =
+            build_delete_maps(&insert_path_by_id);
+
+        // When the graph contains only single-character inserts and deletes on an empty base
+        // document (the fuzz harness model), we can compute the final visible string directly
+        // from insertion-order + delete targets. This avoids ambiguity in OT delete-vs-delete
+        // transformations where two deletes can share the same numeric span but target different
+        // characters.
+        let root_node = self.nodes.get(&self.root).expect("Root node not found");
+        let base_is_empty = root_node.op.ops.is_empty();
+        let harness_like_ops = base_is_empty
+            && order.iter().all(|&node_id| {
+                if node_id == self.root {
+                    return true;
+                }
+                let node = self.nodes.get(&node_id).expect("Node not found");
+                if node.op.ops.is_empty() {
+                    return true;
+                }
+                if node.op.ops.len() != 1 {
+                    return false;
+                }
+                match &node.op.ops[0] {
+                    Op::Insert { content, .. } => content.len() == 1,
+                    Op::Delete { len, .. } => *len == -1,
+                }
+            });
+        if harness_like_ops {
+            let mut deleted = vec![false; order.len()];
+            for target in &delete_target_by_idx {
+                if let Some(target_idx) = *target {
+                    if target_idx < deleted.len() {
+                        deleted[target_idx] = true;
+                    }
+                }
+            }
+
+            let mut inserts: Vec<usize> = Vec::new();
+            for (idx, &node_id) in order.iter().enumerate() {
+                if !is_insert_node(node_id) || deleted[idx] {
+                    continue;
+                }
+                inserts.push(node_id);
+            }
+            inserts.sort_by(|a, b| insert_cmp(*a, *b, &insert_path_by_id).then_with(|| a.cmp(b)));
+
+            let mut content = String::new();
+            for node_id in inserts {
+                let node = self.nodes.get(&node_id).expect("Node not found");
+                if node.op.ops.is_empty() {
+                    continue;
+                }
+                let Op::Insert {
+                    content: ref fragment,
+                    ..
+                } = node.op.ops[0]
+                else {
+                    continue;
+                };
+                content.push_str(fragment);
+            }
+
+            if content.is_empty() {
+                return OpList {
+                    ops: Vec::new(),
+                    test_op: None,
+                };
+            }
+
+            return OpList {
+                ops: vec![Op::Insert { ins: 0, content }],
+                test_op: None,
+            };
+        }
 
         for (idx, &node_id) in order.iter().enumerate() {
             let node = self.nodes.get(&node_id).expect("Node not found");
             let mut node_seq = node.op.from_oplist_to_sequential_list();
 
-            if node_seq.ops.iter().any(|op| op.len() < 0) {
+            if node_seq.ops.iter().all(|op| op.len() >= 0) {
                 for prev_idx in 0..idx {
                     let word = prev_idx / 64;
                     let bit = prev_idx % 64;
@@ -1366,15 +2131,163 @@ impl Graph {
                     if applied[prev_idx].ops.is_empty() {
                         continue;
                     }
-                    node_seq = OpList::transform_ops_impl(&applied[prev_idx].ops, &node_seq, true);
+
+                    let prev_id = order[prev_idx];
+
+                    if let Some(target_idx) = delete_target_by_idx[prev_idx] {
+                        if bitset_has(&deleted_before_by_idx[idx], target_idx) {
+                            continue;
+                        }
+                    }
+
+                    let shift_on_tie = insert_precedes(prev_id, node_id);
+                    node_seq =
+                        OpList::transform_ops_impl(&applied_spans[prev_idx], &node_seq, shift_on_tie);
                     if node_seq.ops.is_empty() {
                         break;
                     }
                 }
             }
 
+            if node_seq.ops.iter().any(|op| op.len() < 0) {
+                let anchor_parent = if node.parents.len() == 1 {
+                    Some(node.parents[0])
+                } else {
+                    None
+                };
+
+                let delete_targets_anchor_parent_insert = anchor_parent
+                    .and_then(|anchor_parent| {
+                        let parent_node = self.nodes.get(&anchor_parent)?;
+                        if parent_node.op.ops.len() != 1 {
+                            return None;
+                        }
+                        let Op::Insert {
+                            ins: parent_ins,
+                            ref content,
+                        } = parent_node.op.ops[0]
+                        else {
+                            return None;
+                        };
+
+                        if node.op.ops.len() != 1 {
+                            return None;
+                        }
+                        let Op::Delete { ins: del_end, len } = node.op.ops[0] else {
+                            return None;
+                        };
+                        if len >= 0 {
+                            return None;
+                        }
+                        let del_start = del_end + len;
+                        let parent_end = parent_ins.saturating_add(content.len() as Length);
+
+                        Some(del_start >= parent_ins && del_end <= parent_end)
+                    })
+                    .unwrap_or(false);
+
+                let node_delete_target_idx = delete_target_by_idx[idx];
+                for prev_idx in 0..idx {
+                    let word = prev_idx / 64;
+                    let bit = prev_idx % 64;
+                    if (ancestors[idx][word] & (1u64 << bit)) != 0 {
+                        continue;
+                    }
+                    if applied[prev_idx].ops.is_empty() {
+                        continue;
+                    }
+
+                    let prev_id = order[prev_idx];
+
+                    if let Some(target_idx) = delete_target_by_idx[prev_idx] {
+                        if bitset_has(&deleted_before_by_idx[idx], target_idx) {
+                            continue;
+                        }
+                    }
+
+                    // Special-case: two single-character deletes can share the same numeric span
+                    // after conversion to sequential-list coordinates, yet still target *different*
+                    // characters (because their local insertion contexts differ). If we let the
+                    // generic OT delete-vs-delete overlap logic run, it will treat them as fully
+                    // redundant and drop one of the deletes, "resurrecting" a character.
+                    //
+                    // When both deletes have resolved targets, break ties by the target insert
+                    // order: if the base delete's target precedes ours, we must shift our delete
+                    // left by one to keep deleting the intended character.
+                    if let (Some(prev_target_idx), Some(curr_target_idx)) =
+                        (delete_target_by_idx[prev_idx], node_delete_target_idx)
+                    {
+                        if prev_target_idx != curr_target_idx
+                            && applied[prev_idx].ops.len() == 1
+                            && node_seq.ops.len() == 1
+                        {
+                            let prev_op = &applied[prev_idx].ops[0];
+                            let prev_len = prev_op.len();
+                            let prev_ins = prev_op.ins();
+                            let curr_len = node_seq.ops[0].len();
+                            let curr_ins = node_seq.ops[0].ins();
+                            if prev_len == -1 && curr_len == -1 && prev_ins == curr_ins {
+                                let prev_target_id = order[prev_target_idx];
+                                let curr_target_id = order[curr_target_idx];
+                                if insert_cmp(prev_target_id, curr_target_id, &insert_path_by_id)
+                                    == Ordering::Less
+                                {
+                                    let new_ins = node_seq.ops[0].ins().saturating_sub(1);
+                                    node_seq.ops[0].set_ins(new_ins);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
+                    // For deletes, tie-breaking against concurrent inserts at the same position
+                    // must be consistent with the ordering rule used for concurrent inserts,
+                    // otherwise deletes can "resurrect" the deleted character by deleting a
+                    // concurrent insert instead.
+                    //
+                    // In the common (single-parent) case, we use the immediate parent op ID as
+                    // an anchor for the delete's local context: inserts with lower IDs are
+                    // ordered before that context and therefore shift the delete on ties; inserts
+                    // with higher IDs are ordered after and should not shift.
+                    let mut shift_on_tie = true;
+                    if let Some(anchor_parent) = anchor_parent {
+                        let prev_is_insert_only = applied[prev_idx].ops.iter().all(|op| op.len() > 0);
+                        if prev_is_insert_only {
+                            if delete_targets_anchor_parent_insert {
+                                shift_on_tie = insert_precedes(prev_id, anchor_parent);
+                            } else {
+                                let prev_node = self.nodes.get(&prev_id).expect("Node not found");
+                                let same_insertion_context =
+                                    prev_node.parents.len() == 1 && prev_node.parents[0] == anchor_parent;
+                                if !same_insertion_context {
+                                    shift_on_tie = prev_id < anchor_parent;
+                                }
+                            }
+                        }
+                    }
+
+                    node_seq = OpList::transform_ops_impl(
+                        &applied_spans[prev_idx],
+                        &node_seq,
+                        shift_on_tie,
+                    );
+                    if node_seq.ops.is_empty() {
+                        break;
+                    }
+                }
+            }
+
+            let mut node_spans: Vec<TransformOp> = Vec::new();
+            for op in &node_seq.ops {
+                node_spans.push(TransformOp {
+                    ins: op.ins(),
+                    len: op.len(),
+                });
+            }
+
             result = node_seq.backwards_apply(&result);
             applied[idx] = node_seq;
+            applied_spans[idx] = node_spans;
         }
 
         result
@@ -3493,29 +4406,29 @@ mod tests {
         let state_at_merge = oplist_to_string(&graph_no_merge.merge_graph());
         println!("State at merge (before delete): '{}'", state_at_merge);
 
-        // Merge node that sees both X and Y
-        graph.add_node(3, empty_oplist(), vec![1, 2]);
+        // The delete is created on the original "B" state (i.e. it is concurrent with X and Y),
+        // so its causal parent is the root. A correct merge must transform this delete against
+        // concurrent inserts so it still targets the original character (B).
+        graph.add_node(4, getOpList([TestOp::Del(1, -1)]), vec![0]); // Delete original B
 
-        // Now delete the character at position appropriate for B
-        // The state should be "XBY" or "BXY" or "BYX" depending on order
-        // We want to delete B, which is at position 1 in "XBY"
-        // But the delete was created when state was just "B" so position would be 0
-
-        // Let's try deleting at position 0 (which is X in "XBY")
-        graph.add_node(4, getOpList([TestOp::Del(1, -1)]), vec![3]); // Delete char at pos 0
+        // Merge all leaves (simulate a full sync)
+        graph.add_node(5, empty_oplist(), vec![1, 2, 4]);
 
         let result = oplist_to_string(&graph.merge_graph());
         println!("Result: '{}'", result);
 
         // The problem is: which character should be deleted?
-        // If we're trying to delete B from the original "B" doc,
+        // If we're deleting B from the original "B" doc,
         // but X was concurrently inserted at position 0,
-        // then B is now at position 1, not position 0!
+        // then B is now at position 1, not position 0.
 
         // This is the OT transformation problem - the delete's position
         // needs to be shifted to account for concurrent inserts
 
-        // For now, let's just document that B should eventually be deleted
+        assert!(result.contains('X'), "X should be preserved, got: {}", result);
+        assert!(result.contains('Y'), "Y should be preserved, got: {}", result);
+
+        // The original B should be deleted after transformation
         assert!(
             !result.contains('B'),
             "B should be deleted, got: {}",

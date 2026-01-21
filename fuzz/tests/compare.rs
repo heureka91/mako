@@ -777,6 +777,2571 @@ fn replay_seed_5ef59262() {
     .run();
 }
 
+/// Deterministic replay of fuzz-found divergence (seed 0x2f5ae5de00000096).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_2f5ae5de -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_2f5ae5de() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x2f5ae5de00000096 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x2f5ae5de00000096)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x5b98d17000000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_5b98d170 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_5b98d170() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x5b98d17000000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x5b98d17000000078)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x8fd60c990000003e).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_8fd60c99 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_8fd60c99() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x8fd60c990000003e ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x8fd60c990000003e)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x4bcfa4530000004d).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_4bcfa453 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_4bcfa453() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x4bcfa4530000004d ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x4bcfa4530000004d)
+    .run();
+}
+
+/// Deterministic replay of insert-only fuzz divergence (seed 0xae97dc9700000020).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_ae97dc97 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_ae97dc97() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=3)?;
+        let num_inserts: usize = u.int_in_range(2..=10)?;
+
+        println!("=== Seed 0xae97dc9700000020 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_inserts: {}", num_inserts);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_inserts {
+            let site: u8 = u.arbitrary()?;
+            let pos: u8 = u.arbitrary()?;
+            let char: u8 = u.arbitrary()?;
+            let action = FuzzAction::Insert { site, pos, char };
+
+            println!("Insert {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xae97dc9700000020)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x899e4f670000003e).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_899e4f67 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_899e4f67() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x899e4f670000003e ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x899e4f670000003e)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0xee0b97e30000003e).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_ee0b97e3 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_ee0b97e3() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xee0b97e30000003e ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xee0b97e30000003e)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x6c2b3e5d00000028).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_6c2b3e5d -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_6c2b3e5d() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x6c2b3e5d00000028 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x6c2b3e5d00000028)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0xfd77a57d00000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_fd77a57d -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_fd77a57d() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xfd77a57d00000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xfd77a57d00000078)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x5662092700000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_56620927 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_56620927() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x5662092700000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x5662092700000060)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0xc333fd5300000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_c333fd53 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_c333fd53() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xc333fd5300000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+
+            if i == 12 || i == 13 || i == 14 {
+                println!("\n--- Debug after step {} ---", i);
+                for j in 0..num_sites as usize {
+                    println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                    println!(
+                        "Mako merged ops[{}]: {}",
+                        j,
+                        harness.mako_replicas[j].debug_merged_ops()
+                    );
+                }
+                println!("--- End debug ---\n");
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xc333fd5300000060)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x79e8788900000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_79e87889 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_79e87889() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x79e8788900000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x79e8788900000060)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0xf13b71f200000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_f13b71f2 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_f13b71f2() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xf13b71f200000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xf13b71f200000078)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x17322fae00000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_17322fae -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_17322fae() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x17322fae00000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x17322fae00000060)
+    .run();
+}
+
+/// Deterministic replay of fuzz-found divergence (seed 0x6d666d8e000000bb).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_6d666d8e -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_6d666d8e() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x6d666d8e000000bb ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x6d666d8e000000bb)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0xa21227a600000373).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_a21227a6 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_a21227a6() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xa21227a600000373 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xa21227a600000373)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x0d628eb300010000).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_0d628eb3 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_0d628eb3() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x0d628eb300010000 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x0d628eb300010000)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0xc2e4876900000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_c2e48769 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_c2e48769() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xc2e4876900000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xc2e4876900000078)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0xd563101700000373).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_d5631017 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_d5631017() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xd563101700000373 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xd563101700000373)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x5dc28df200000028).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_5dc28df2 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_5dc28df2() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x5dc28df200000028 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x5dc28df200000028)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x30d21d4e00000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_30d21d4e -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_30d21d4e() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x30d21d4e00000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x30d21d4e00000060)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x050f6c150000003e).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_050f6c15 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_050f6c15() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x050f6c150000003e ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x050f6c150000003e)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0xe94aabf9000002c3).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_e94aabf9 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_e94aabf9() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xe94aabf9000002c3 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xe94aabf9000002c3)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x5423ecfc00000060).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_5423ecfc -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_5423ecfc() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x5423ecfc00000060 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x5423ecfc00000060)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0xb53705a7000000e9).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_b53705a7 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_b53705a7() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xb53705a7000000e9 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xb53705a7000000e9)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x0038009800000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_00380098 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_00380098() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x0038009800000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x0038009800000078)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x43c95fbc00000562).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_43c95fbc -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_43c95fbc() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x43c95fbc00000562 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x43c95fbc00000562)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x8df549a300010000).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_8df549a3 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_8df549a3() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x8df549a300010000 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x8df549a300010000)
+    .run();
+}
+
+/// Deterministic replay of current failing fuzz test (seed 0x0e56061100000868).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_0e560611 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_0e560611() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x0e56061100000868 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x0e56061100000868)
+    .run();
+}
+
+/// Deterministic replay of failing fuzz test (seed 0x45fbecdb00000078).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_45fbecdb -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_45fbecdb() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x45fbecdb00000078 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0x45fbecdb00000078)
+    .run();
+}
+
+/// Deterministic replay of failing fuzz test (seed 0xb372f87f0000004d).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_b372f87f -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_b372f87f() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xb372f87f0000004d ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xb372f87f0000004d)
+    .run();
+}
+
+/// Deterministic replay of failing fuzz test (seed 0xbc87aa1a000000bb).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_bc87aa1a -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_bc87aa1a() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xbc87aa1a000000bb ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xbc87aa1a000000bb)
+    .run();
+}
+
+/// Deterministic replay of failing fuzz test (seed 0xd0ddc7f000000373).
+///
+/// Run:
+/// `cargo test -p mako-fuzz --test compare replay_seed_d0ddc7f0 -- --ignored --nocapture`
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_d0ddc7f0() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xd0ddc7f000000373 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+            for j in 0..num_sites as usize {
+                println!("Mako graph[{}]:\n{}", j, harness.mako_replicas[j].debug_graph());
+                println!("Mako merged ops[{}]: {}", j, harness.mako_replicas[j].debug_merged_ops());
+            }
+        }
+
+        Ok(())
+    })
+    .seed(0xd0ddc7f000000373)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0xe2106759000001c5
+/// Mako produces 'VDLZ', Fugue produces 'VSDL'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_e2106759() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xe2106759000001c5 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xe2106759000001c5)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0xf2c6c64a000061d0
+/// Mako produces 'PWMDAR', Fugue produces 'RPWMSA'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_f2c6c64a() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xf2c6c64a000061d0 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xf2c6c64a000061d0)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0xae51363200010000
+/// Mako produces 'OJ', Fugue produces 'JO'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_ae513632() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xae51363200010000 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xae51363200010000)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0x69a681c700000032
+/// Mako produces 'AAAAAAMA', Fugue produces 'AAAAAAAM'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_69a681c7() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x69a681c700000032 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x69a681c700000032)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0x5f00705d0000004d
+/// Mako produces 'ARMKA', Fugue produces 'AARMK'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_5f00705d() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x5f00705d0000004d ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x5f00705d0000004d)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0x26261b0e00010000
+/// Mako produces 'LZKN', Fugue produces 'KLZN'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_26261b0e() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x26261b0e00010000 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x26261b0e00010000)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0x8b1a484900000028
+/// Mako produces 'AAAAAAAAAAMA', Fugue produces 'AAAAAAAAAAAM'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_8b1a4849() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x8b1a484900000028 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x8b1a484900000028)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0xef0ae3d5000002c3
+/// Mako produces 'GNIR', Fugue produces 'NIRG'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_ef0ae3d5() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0xef0ae3d5000002c3 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0xef0ae3d5000002c3)
+    .run();
+}
+
+/// Deterministic replay of failing seed 0x8a0f798e00010000
+/// Mako produces 'LJZN', Fugue produces 'TLZJ'
+#[test]
+#[ignore] // Enable to debug the specific seed
+fn replay_seed_8a0f798e() {
+    use arbtest::arbtest;
+
+    arbtest(|u| {
+        let num_sites: u8 = u.int_in_range(2..=4)?;
+        let num_actions: usize = u.int_in_range(3..=20)?;
+
+        println!("=== Seed 0x8a0f798e00010000 ===");
+        println!("num_sites: {}", num_sites);
+        println!("num_actions: {}", num_actions);
+
+        let mut harness = TestHarness::new(num_sites);
+
+        for i in 0..num_actions {
+            let action: FuzzAction = u.arbitrary()?;
+            println!("Step {}: {:?}", i, action);
+            harness.apply(&action);
+
+            for j in 0..num_sites as usize {
+                println!(
+                    "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                    j,
+                    harness.mako_replicas[j].to_string(),
+                    j,
+                    harness.fugue_replicas[j].to_string()
+                );
+            }
+        }
+
+        println!("\n=== Final SyncAll ===");
+        harness.apply(&FuzzAction::SyncAll);
+
+        println!("=== Final State ===");
+        for j in 0..num_sites as usize {
+            println!(
+                "  Mako[{}]: '{}' | Fugue[{}]: '{}'",
+                j,
+                harness.mako_replicas[j].to_string(),
+                j,
+                harness.fugue_replicas[j].to_string()
+            );
+        }
+
+        if let Err(e) = harness.check_equal() {
+            println!("\nDIVERGENCE: {}", e);
+        }
+
+        Ok(())
+    })
+    .seed(0x8a0f798e00010000)
+    .run();
+}
+
 /// BUG 1: Concurrent insert ordering differs from Fugue reference (seed 0xa79bb49300000060)
 ///
 /// After a sequence of concurrent inserts and syncs, Mako produces 'FVE' while
@@ -964,7 +3529,14 @@ fn test_delete_drops_concurrent_insert_bug() {
     }
 
     // H should NOT be deleted - it was inserted by site 3 and never explicitly deleted
-    harness
-        .check_equal()
-        .expect("Mako should match Fugue reference - H should not be deleted");
+    if let Err(e) = harness.check_equal() {
+        println!("\nDIVERGENCE: {}", e);
+        println!("=== Mako[0] graph ===\n{}", harness.mako_replicas[0].debug_graph());
+        println!(
+            "=== Mako[0] merged ops ===\n{}",
+            harness.mako_replicas[0].debug_merged_ops()
+        );
+        println!("=== Fugue[0] ===\n'{}'", harness.fugue_replicas[0].to_string());
+        panic!("Mako should match Fugue reference - H should not be deleted");
+    }
 }

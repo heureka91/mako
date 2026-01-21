@@ -97,6 +97,45 @@ impl MakoReplica {
         }
     }
 
+    fn recompute_frontier(&mut self) {
+        use std::collections::{HashSet, VecDeque};
+
+        // Only include nodes whose full parent chain is reachable from the root. This prevents
+        // buffering out-of-order updates (missing causal deps) from contaminating the parent set
+        // for new local operations.
+        let mut reachable: HashSet<usize> = HashSet::new();
+        let mut queue: VecDeque<usize> = VecDeque::new();
+        reachable.insert(self.graph.root);
+        queue.push_back(self.graph.root);
+
+        while let Some(node_id) = queue.pop_front() {
+            let node = self.graph.nodes.get(&node_id).expect("Node not found");
+            for &child_id in &node.children {
+                if reachable.contains(&child_id) {
+                    continue;
+                }
+                let child = self.graph.nodes.get(&child_id).expect("Child node not found");
+                if child.parents.iter().all(|parent_id| reachable.contains(parent_id)) {
+                    reachable.insert(child_id);
+                    queue.push_back(child_id);
+                }
+            }
+        }
+
+        let mut frontier: Vec<usize> = Vec::new();
+        for &node_id in &reachable {
+            let node = self.graph.nodes.get(&node_id).expect("Node not found");
+            let has_reachable_child =
+                node.children.iter().any(|child_id| reachable.contains(child_id));
+            if !has_reachable_child {
+                frontier.push(node_id);
+            }
+        }
+        frontier.sort_unstable();
+        frontier.dedup();
+        self.frontier = frontier;
+    }
+
     /// Generate a globally unique node ID for this replica
     fn next_node_id(&mut self) -> usize {
         let local_counter = self.next_local_counter;
@@ -194,13 +233,7 @@ impl MakoReplica {
         self.graph
             .add_node(update.node_id, update.op, update.parents.clone());
 
-        // Update frontier: remove the parents this node builds on, add this node
-        for parent in &update.parents {
-            self.frontier.retain(|&id| id != *parent);
-        }
-        self.frontier.push(update.node_id);
-        self.frontier.sort();
-        self.frontier.dedup();
+        self.recompute_frontier();
     }
 }
 
